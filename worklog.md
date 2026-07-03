@@ -404,3 +404,16 @@ Stage Summary:
 - The Images/PDFs/Sheets/Docs smart folder pills are removed from the Files tab
 - Folder pills row is back to: All Files + user folders + New folder
 - Swipe order cycles through All → user folders only
+
+---
+Task ID: 18
+Agent: Orchestrator
+Task: Files — show 3-card grid on mobile view
+
+Work Log:
+- Changed the files grid base column count from grid-cols-2 → grid-cols-3 on mobile (both the main files section and the pending-uploads skeleton row). Responsive scale unchanged: 3 / sm:3 / md:4 / lg:6 / xl:8 / 2xl:9
+- Verified via Agent Browser + VLM at mobile 390×844: grid width 358px / card width 114px = 3 columns; VLM confirms "3" columns visible
+- `bun run lint` clean
+
+Stage Summary:
+- Files grid now shows 3 cards per row on mobile (was 2)

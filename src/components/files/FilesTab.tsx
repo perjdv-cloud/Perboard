@@ -614,7 +614,7 @@ export default function FilesTab() {
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Saving {pendingUploads.length} file(s)…
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9">
                 {pendingUploads.map((p) => (
                   <div
                     key={p.id}
@@ -633,7 +633,7 @@ export default function FilesTab() {
         {/* Files grid */}
         <section
           aria-label="Files"
-          className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9"
+          className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9"
         >
           {loadingFiles
             ? Array.from({ length: 8 }).map((_, i) => (
