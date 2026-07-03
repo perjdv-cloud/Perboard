@@ -568,3 +568,33 @@ Stage Summary:
 - Income section has account tabs that are smoothly swipable (drag left/right to cycle accounts)
 - Both income and expense use an 11-column responsive grid (2 cols mobile → 11 cols desktop)
 - Cards are very compact one-line: date · category · amount (+ receipt indicator) in a single row
+
+---
+Task ID: 25
+Agent: Orchestrator
+Task: Finance — increase income card text size + add week/month/year grouping with summed amounts
+
+Work Log:
+- Increased CompactCard text/padding for readability (kept one-line):
+  - Date: text-[9px] → text-xs
+  - Category: text-[10px] → text-sm
+  - Amount: text-[10px] → text-sm
+  - Receipt icon: h-2.5 → h-3.5
+  - Padding: px-1.5 py-1 → px-2.5 py-2; rounded-md → rounded-lg; gap-1 → gap-1.5
+- Added a `groupMode` state ("none" | "week" | "month" | "year")
+- Added grouping helpers: getWeekNumber (ISO week), getWeekStart (Monday), GroupedIncome interface, groupIncomes(items, mode) → returns [{key, label, sum, items}] sorted date-desc. Week label = "29 Jun – 5 Jul (W27)", month label = "July 2026", year label = "2026".
+- Added `groupedIncomes` memo = groupIncomes(displayedIncomes, groupMode)
+- Added a group-by selector in the Income tab bar: a segmented control with buttons All / Week / Month / Year (active = emerald). Sits next to the sort Select.
+- Income grid now renders grouped sections when groupMode ≠ "none": each group has a sticky header row showing the group label + count badge + summed amount (formatCurrency), followed by its own 11-col grid of CompactCards. When groupMode === "none" it renders the flat 11-col grid as before.
+- Verified via Agent Browser + VLM:
+  - Card text is now readable (text-sm); cards stay one-line (date, category, amount)
+  - Group buttons All/Week/Month/Year render in the income tab bar
+  - Month grouping: shows "July 2026" header with sum ₹98,305 + cards
+  - Week grouping: shows "29 Jun – 5 Jul (W27)" header with sum ₹98,970 + cards
+  - Year grouping: shows "2026" header with sum ₹99,778 + cards
+  - All (flat) grouping: shows the plain 11-col grid as before
+  - No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- Income card text increased to text-sm (was 9–10px) — readable but still one-line
+- Income view now has All/Week/Month/Year group buttons; selecting Week/Month/Year groups the income cards under sticky headers showing the period label + item count + summed amount, each group rendering its own 11-column grid

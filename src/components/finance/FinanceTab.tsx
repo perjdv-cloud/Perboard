@@ -105,6 +105,96 @@ function formatDateShort(iso: string): string {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+/** ISO week number (1–53) of a date. */
+function getWeekNumber(d: Date): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = (date.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+  date.setUTCDate(date.getUTCDate() - dayNum + 3); // nearest Thursday
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  return (
+    1 +
+    Math.round(
+      ((date.getTime() - firstThursday.getTime()) / 86400000 -
+        3 +
+        ((firstThursday.getUTCDay() + 6) % 7)) /
+        7
+    )
+  );
+}
+
+/** Monday of the week containing d, as a Date. */
+function getWeekStart(d: Date): Date {
+  const date = new Date(d);
+  const day = (date.getDay() + 6) % 7; // Mon=0..Sun=6
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - day);
+  return date;
+}
+
+type GroupMode = "none" | "week" | "month" | "year";
+
+interface GroupedIncome {
+  key: string;
+  label: string;
+  sum: number;
+  items: Transaction[];
+}
+
+/** Group income transactions by week/month/year with summed amounts. */
+function groupIncomes(
+  items: Transaction[],
+  mode: GroupMode
+): GroupedIncome[] {
+  if (mode === "none") {
+    return [
+      {
+        key: "all",
+        label: "All",
+        sum: items.reduce((s, t) => s + t.amount, 0),
+        items,
+      },
+    ];
+  }
+  const map = new Map<string, GroupedIncome>();
+  for (const t of items) {
+    const d = new Date(t.date);
+    let key: string;
+    let label: string;
+    if (mode === "week") {
+      const ws = getWeekStart(d);
+      const we = new Date(ws);
+      we.setDate(ws.getDate() + 6);
+      key = `${ws.getFullYear()}-${ws.getMonth()}-${ws.getDate()}`;
+      label = `${ws.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+      })} – ${we.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+      })} (W${getWeekNumber(d)})`;
+    } else if (mode === "month") {
+      key = `${d.getFullYear()}-${d.getMonth()}`;
+      label = d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    } else {
+      key = `${d.getFullYear()}`;
+      label = `${d.getFullYear()}`;
+    }
+    const existing = map.get(key);
+    if (existing) {
+      existing.items.push(t);
+      existing.sum += t.amount;
+    } else {
+      map.set(key, { key, label, sum: t.amount, items: [t] });
+    }
+  }
+  // Sort groups by date descending
+  return Array.from(map.values()).sort((a, b) => {
+    const da = new Date(a.items[0].date).getTime();
+    const db = new Date(b.items[0].date).getTime();
+    return db - da;
+  });
+}
+
 export default function FinanceTab() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -136,6 +226,9 @@ export default function FinanceTab() {
 
   // Top-level view tab: "income" | "expense" (swipable)
   const [viewTab, setViewTab] = React.useState<"income" | "expense">("income");
+
+  // Income grouping mode: "none" | "week" | "month" | "year"
+  const [groupMode, setGroupMode] = React.useState<"none" | "week" | "month" | "year">("none");
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -190,6 +283,12 @@ export default function FinanceTab() {
         : incomes.filter((t) => t.account === accountTab);
     return sortItems(filtered, sort);
   }, [incomes, accountTab, sort]);
+
+  // Income grouped by week/month/year (with summed amounts)
+  const groupedIncomes = React.useMemo(
+    () => groupIncomes(displayedIncomes, groupMode),
+    [displayedIncomes, groupMode]
+  );
 
   // ----- Inline save -----
   const saveEntry = React.useCallback(async () => {
@@ -547,17 +646,37 @@ export default function FinanceTab() {
             </button>
           </div>
           {viewTab === "income" && (
-            <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-              <SelectTrigger size="sm" className="h-7 w-24 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Recent</SelectItem>
-                <SelectItem value="date">Date</SelectItem>
-                <SelectItem value="month">Month</SelectItem>
-                <SelectItem value="type">Type</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1.5">
+              {/* Group-by selector */}
+              <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5">
+                {(["none", "week", "month", "year"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setGroupMode(m)}
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[10px] font-semibold capitalize transition",
+                      groupMode === m
+                        ? "bg-background text-emerald-700 shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {m === "none" ? "All" : m}
+                  </button>
+                ))}
+              </div>
+              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                <SelectTrigger size="sm" className="h-7 w-24 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Recent</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="month">Month</SelectItem>
+                  <SelectItem value="type">Type</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
 
@@ -619,11 +738,11 @@ export default function FinanceTab() {
                 ))}
               </motion.div>
 
-              {/* Income 11-column grid of one-line cards */}
+              {/* Income grid — grouped by week/month/year (with sums) or flat */}
               {loading ? (
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
                   {Array.from({ length: 11 }).map((_, i) => (
-                    <Skeleton key={i} className="h-9 rounded-md" />
+                    <Skeleton key={i} className="h-12 rounded-md" />
                   ))}
                 </div>
               ) : displayedIncomes.length === 0 ? (
@@ -633,7 +752,7 @@ export default function FinanceTab() {
                   description="Add income using the row above."
                   tone="emerald"
                 />
-              ) : (
+              ) : groupMode === "none" ? (
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
                   {displayedIncomes.map((t) => (
                     <CompactCard
@@ -642,6 +761,37 @@ export default function FinanceTab() {
                       tone="income"
                       onClick={() => openTransaction(t)}
                     />
+                  ))}
+                </div>
+              ) : (
+                /* Grouped: each group has a header (label + sum) then its 11-col grid */
+                <div className="space-y-3">
+                  {groupedIncomes.map((g) => (
+                    <div key={g.key} className="space-y-1.5">
+                      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-md bg-emerald-50/90 px-2.5 py-1 backdrop-blur dark:bg-emerald-950/60">
+                        <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                          {g.label}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="rounded-full bg-emerald-200/70 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                            {g.items.length}
+                          </span>
+                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                            {formatCurrency(g.sum)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                        {g.items.map((t) => (
+                          <CompactCard
+                            key={t.id}
+                            transaction={t}
+                            tone="income"
+                            onClick={() => openTransaction(t)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -752,21 +902,21 @@ function CompactCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex items-center gap-1 overflow-hidden rounded-md border px-1.5 py-1 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
+        "group flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
         isIncome
-          ? "border-emerald-200/70 bg-emerald-50/40 hover:border-emerald-400 focus-visible:ring-emerald-500/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
-          : "border-rose-200/70 bg-rose-50/40 hover:border-rose-400 focus-visible:ring-rose-500/40 dark:border-rose-900/50 dark:bg-rose-950/20"
+          ? "border-emerald-200/70 bg-emerald-50/50 hover:border-emerald-400 focus-visible:ring-emerald-500/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+          : "border-rose-200/70 bg-rose-50/50 hover:border-rose-400 focus-visible:ring-rose-500/40 dark:border-rose-900/50 dark:bg-rose-950/20"
       )}
       title={`${transaction.category} · ${transaction.account} · ${formatDate(transaction.date)}`}
     >
-      {/* Date (very short) */}
-      <span className="shrink-0 text-[9px] font-medium text-muted-foreground">
+      {/* Date (short) */}
+      <span className="shrink-0 text-xs font-medium text-muted-foreground">
         {formatDateShort(transaction.date)}
       </span>
       {/* Category (truncate) */}
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-[10px] font-semibold capitalize",
+          "min-w-0 flex-1 truncate text-sm font-semibold capitalize",
           isIncome ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"
         )}
       >
@@ -774,12 +924,12 @@ function CompactCard({
       </span>
       {/* Receipt indicator */}
       {hasImage && (
-        <Receipt className={cn("h-2.5 w-2.5 shrink-0", isIncome ? "text-emerald-500" : "text-rose-500")} />
+        <Receipt className={cn("h-3.5 w-3.5 shrink-0", isIncome ? "text-emerald-500" : "text-rose-500")} />
       )}
       {/* Amount */}
       <span
         className={cn(
-          "shrink-0 text-[10px] font-bold tabular-nums",
+          "shrink-0 text-sm font-bold tabular-nums",
           isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
         )}
       >
