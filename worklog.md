@@ -166,3 +166,25 @@ Stage Summary:
 - Auto-save (Notes composer + Finance inline entry), enlarge-on-click (Notes + Finance income), swipable folders (Notes + Files), swipable account tabs (Finance income), sorting, search, and grid layouts all confirmed working
 - Responsive design + sticky footer confirmed on desktop and mobile
 - Database cleaned; ready for user
+
+---
+Task ID: 7
+Agent: Orchestrator
+Task: Make Notes search bar and Take-a-note composer more compact
+
+Work Log:
+- Reduced outer tab spacing from space-y-5 to space-y-3
+- Search bar: height h-11→h-9, placeholder shortened to "Search notes…", smaller icon (h-3.5), tighter padding, smaller clear button (h-5 w-5)
+- Sort dropdown: height h-11→h-9, width 150px→128px, smaller icon/padding
+- Top bar changed from stacked (flex-col on mobile) to a single inline row (flex items-center gap-2)
+- Composer card: padding p-4→p-2.5, rounded-2xl→rounded-xl, border-left 4px→3px
+- Collapsed "Take a note" button: smaller plus icon (h-6 w-6 circle, h-3.5 icon), tighter gap
+- Expanded composer: spacing space-y-3→space-y-2, title text-base→text-sm, textarea min-h 100px→64px with leading-snug
+- Color picker swatches: h-5 w-5→h-4 w-4, gap-1.5→gap-1
+- Type buttons (Text/Image/Draw/Voice): h-9 w-9→h-7 w-7, icon h-4→h-3.5, gap-1→gap-0.5
+- Image upload zone: h-28→h-20, icon h-5→h-4
+- Verified via Agent Browser: compact layout renders correctly, expanded composer shows all controls tightly packed, no console errors
+- `bun run lint` clean
+
+Stage Summary:
+- Notes search + Take-a-note composer are now noticeably more compact while keeping all functionality (search, sort, text/image/draw/voice, color, folder, auto-save)

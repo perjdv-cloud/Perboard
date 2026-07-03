@@ -255,46 +255,44 @@ export default function NotesTab() {
       : folders.find((f) => f.id === activeFolder)?.name ?? "Notes";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Top bar: search + sort */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search notes by title or content…"
-            className="h-11 rounded-full border-border/70 bg-card pl-10 pr-9 shadow-sm"
+            placeholder="Search notes…"
+            className="h-9 rounded-full border-border/70 bg-card pl-9 pr-8 text-sm shadow-sm"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="absolute right-2.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
               aria-label="Clear search"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3 w-3" />
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <SortAsc className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Select
-              value={sort}
-              onValueChange={(v) => setSort(v as SortKey)}
-            >
-              <SelectTrigger className="h-11 w-[150px] rounded-full border-border/70 bg-card pl-9 pr-8 shadow-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Recent</SelectItem>
-                <SelectItem value="date">Date created</SelectItem>
-                <SelectItem value="month">Month</SelectItem>
-                <SelectItem value="type">Type</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="relative shrink-0">
+          <SortAsc className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Select
+            value={sort}
+            onValueChange={(v) => setSort(v as SortKey)}
+          >
+            <SelectTrigger className="h-9 w-[128px] rounded-full border-border/70 bg-card pl-8 pr-7 text-sm shadow-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">Recent</SelectItem>
+              <SelectItem value="date">Date created</SelectItem>
+              <SelectItem value="month">Month</SelectItem>
+              <SelectItem value="type">Type</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -780,22 +778,22 @@ function ComposerCard({
   return (
     <div
       id="note-composer"
-      className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
-      style={{ borderLeftColor: color, borderLeftWidth: 4 }}
+      className="rounded-xl border border-border/60 bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md"
+      style={{ borderLeftColor: color, borderLeftWidth: 3 }}
     >
       {!expanded ? (
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex w-full items-center gap-3 text-left text-sm text-muted-foreground"
+          className="flex w-full items-center gap-2 py-0.5 text-left text-sm text-muted-foreground"
         >
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
-            <Plus className="h-4 w-4" />
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+            <Plus className="h-3.5 w-3.5" />
           </span>
           <span>Take a note…</span>
         </button>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Title */}
           <input
             value={title}
@@ -804,7 +802,7 @@ function ComposerCard({
               scheduleSave();
             }}
             placeholder="Title"
-            className="w-full bg-transparent text-base font-semibold outline-none placeholder:text-muted-foreground"
+            className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
             autoFocus
           />
 
@@ -817,7 +815,7 @@ function ComposerCard({
                 scheduleSave();
               }}
               placeholder="Start writing…"
-              className="min-h-[100px] w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="min-h-[64px] w-full resize-none bg-transparent text-sm leading-snug outline-none placeholder:text-muted-foreground"
             />
           )}
 
@@ -856,9 +854,9 @@ function ComposerCard({
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
-                  className="flex h-28 w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border text-sm text-muted-foreground transition hover:border-amber-400 hover:bg-amber-50/50 hover:text-amber-700"
+                  className="flex h-20 w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border text-sm text-muted-foreground transition hover:border-amber-400 hover:bg-amber-50/50 hover:text-amber-700"
                 >
-                  <ImageIcon className="h-5 w-5" />
+                  <ImageIcon className="h-4 w-4" />
                   <span>Click to upload image</span>
                 </button>
               )}
@@ -942,7 +940,7 @@ function ComposerCard({
           )}
 
           {/* Color picker */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <div className="flex flex-wrap items-center gap-1 pt-0.5">
             {NOTE_COLORS.map((c) => (
               <button
                 key={c}
@@ -952,7 +950,7 @@ function ComposerCard({
                   scheduleSave();
                 }}
                 className={cn(
-                  "h-5 w-5 rounded-full border-2 transition",
+                  "h-4 w-4 rounded-full border-2 transition",
                   color === c
                     ? "scale-110 border-foreground"
                     : "border-transparent"
@@ -964,8 +962,8 @@ function ComposerCard({
           </div>
 
           {/* Folder selector + actions */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+            <div className="flex items-center gap-0.5">
               <ComposerTypeButton
                 active={activeTypeBtn("text")}
                 onClick={() => {
@@ -1086,7 +1084,7 @@ function ComposerTypeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "grid h-9 w-9 place-items-center rounded-full transition",
+        "grid h-7 w-7 place-items-center rounded-full transition",
         active
           ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
           : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -1094,7 +1092,7 @@ function ComposerTypeButton({
       title={label}
       aria-label={label}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3.5 w-3.5" />
     </button>
   );
 }

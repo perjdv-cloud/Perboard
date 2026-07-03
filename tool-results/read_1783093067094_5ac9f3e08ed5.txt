@@ -1,0 +1,1291 @@
+     1→"use client";
+     2→
+     3→import {
+     4→  useState,
+     5→  useEffect,
+     6→  useMemo,
+     7→  useRef,
+     8→  useCallback,
+     9→  type ReactNode,
+    10→} from "react";
+    11→import { motion, AnimatePresence } from "framer-motion";
+    12→import {
+    13→  Search,
+    14→  Plus,
+    15→  X,
+    16→  FolderPlus,
+    17→  Pin,
+    18→  Trash2,
+    19→  Type,
+    20→  Image as ImageIcon,
+    21→  Pencil,
+    22→  Mic,
+    23→  Clock,
+    24→  Folder as FolderIcon,
+    25→  Inbox,
+    26→  StickyNote,
+    27→  Loader2,
+    28→  SortAsc,
+    29→  Check,
+    30→  AlertCircle,
+    31→} from "lucide-react";
+    32→
+    33→import { Button } from "@/components/ui/button";
+    34→import { Input } from "@/components/ui/input";
+    35→import { Textarea } from "@/components/ui/textarea";
+    36→import { Skeleton } from "@/components/ui/skeleton";
+    37→import { Badge } from "@/components/ui/badge";
+    38→import {
+    39→  Select,
+    40→  SelectContent,
+    41→  SelectItem,
+    42→  SelectTrigger,
+    43→  SelectValue,
+    44→} from "@/components/ui/select";
+    45→import {
+    46→  Dialog,
+    47→  DialogContent,
+    48→  DialogHeader,
+    49→  DialogTitle,
+    50→  DialogDescription,
+    51→  DialogFooter,
+    52→} from "@/components/ui/dialog";
+    53→
+    54→import { api, readFileAsDataURL, sortItems } from "@/lib/api";
+    55→import {
+    56→  NOTE_COLORS,
+    57→  FOLDER_COLORS,
+    58→  type Note,
+    59→  type NoteFolder,
+    60→  type NoteType,
+    61→  type SortKey,
+    62→} from "@/lib/types";
+    63→import { toast } from "@/hooks/use-toast";
+    64→import { cn } from "@/lib/utils";
+    65→
+    66→import NoteEditor, {
+    67→  DrawingCanvas,
+    68→  VoiceRecorder,
+    69→  VoicePlayer,
+    70→  NoteTypeBadge,
+    71→  SaveIndicator,
+    72→  useLatest,
+    73→  type SaveState,
+    74→} from "./NoteEditor";
+    75→
+    76→/* ---------------- helpers ---------------- */
+    77→
+    78→function timeAgo(iso: string): string {
+    79→  const diff = Date.now() - new Date(iso).getTime();
+    80→  const s = Math.floor(diff / 1000);
+    81→  if (s < 30) return "just now";
+    82→  if (s < 60) return `${s}s ago`;
+    83→  const m = Math.floor(s / 60);
+    84→  if (m < 60) return `${m}m ago`;
+    85→  const h = Math.floor(m / 60);
+    86→  if (h < 24) return `${h}h ago`;
+    87→  const d = Math.floor(h / 24);
+    88→  if (d < 7) return `${d}d ago`;
+    89→  const w = Math.floor(d / 7);
+    90→  if (w < 5) return `${w}w ago`;
+    91→  return new Date(iso).toLocaleDateString("en-IN", {
+    92→    day: "numeric",
+    93→    month: "short",
+    94→  });
+    95→}
+    96→
+    97→/* ---------------- main component ---------------- */
+    98→
+    99→export default function NotesTab() {
+   100→  const [notes, setNotes] = useState<Note[]>([]);
+   101→  const [folders, setFolders] = useState<NoteFolder[]>([]);
+   102→  const [loading, setLoading] = useState(true);
+   103→  const [activeFolder, setActiveFolder] = useState<string>("all");
+   104→  const [search, setSearch] = useState("");
+   105→  const [sort, setSort] = useState<SortKey>("recent");
+   106→
+   107→  const [editorNote, setEditorNote] = useState<Note | null>(null);
+   108→  const [editorOpen, setEditorOpen] = useState(false);
+   109→
+   110→  const [addFolderOpen, setAddFolderOpen] = useState(false);
+   111→
+   112→  const loadFolders = useCallback(async () => {
+   113→    try {
+   114→      const f = await api<NoteFolder[]>("/api/note-folders");
+   115→      setFolders(f);
+   116→    } catch (e) {
+   117→      console.error(e);
+   118→    }
+   119→  }, []);
+   120→
+   121→  const loadNotes = useCallback(async () => {
+   122→    setLoading(true);
+   123→    try {
+   124→      const n = await api<Note[]>("/api/notes");
+   125→      setNotes(n);
+   126→    } catch (e) {
+   127→      console.error(e);
+   128→      toast({ title: "Failed to load notes", variant: "destructive" });
+   129→    } finally {
+   130→      setLoading(false);
+   131→    }
+   132→  }, []);
+   133→
+   134→  useEffect(() => {
+   135→    void loadFolders();
+   136→    void loadNotes();
+   137→  }, [loadFolders, loadNotes]);
+   138→
+   139→  const filteredNotes = useMemo(() => {
+   140→    let arr = notes;
+   141→    if (activeFolder === "none") {
+   142→      arr = arr.filter((n) => n.folderId === null);
+   143→    } else if (activeFolder !== "all") {
+   144→      arr = arr.filter((n) => n.folderId === activeFolder);
+   145→    }
+   146→    if (search.trim()) {
+   147→      const q = search.trim().toLowerCase();
+   148→      arr = arr.filter(
+   149→        (n) =>
+   150→          n.title.toLowerCase().includes(q) ||
+   151→          n.content.toLowerCase().includes(q)
+   152→      );
+   153→    }
+   154→    const sorted = sortItems(arr, sort);
+   155→    // Pinned first within the sorted order
+   156→    return [
+   157→      ...sorted.filter((n) => n.pinned),
+   158→      ...sorted.filter((n) => !n.pinned),
+   159→    ];
+   160→  }, [notes, activeFolder, search, sort]);
+   161→
+   162→  const handleCreated = useCallback((note: Note) => {
+   163→    setNotes((prev) => {
+   164→      if (prev.some((n) => n.id === note.id)) {
+   165→        return prev.map((n) => (n.id === note.id ? note : n));
+   166→      }
+   167→      return [note, ...prev];
+   168→    });
+   169→  }, []);
+   170→
+   171→  const handleSaved = useCallback((updated: Note) => {
+   172→    setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+   173→    setEditorNote((prev) => (prev?.id === updated.id ? updated : prev));
+   174→  }, []);
+   175→
+   176→  const handleDeleted = useCallback((id: string) => {
+   177→    setNotes((prev) => prev.filter((n) => n.id !== id));
+   178→    setEditorNote((prev) => (prev?.id === id ? null : prev));
+   179→  }, []);
+   180→
+   181→  const handleTogglePin = useCallback(
+   182→    async (note: Note) => {
+   183→      // Optimistic update
+   184→      setNotes((prev) =>
+   185→        prev.map((n) =>
+   186→          n.id === note.id ? { ...n, pinned: !n.pinned } : n
+   187→        )
+   188→      );
+   189→      try {
+   190→        const updated = await api<Note>(`/api/notes/${note.id}`, {
+   191→          method: "PUT",
+   192→          body: JSON.stringify({ pinned: !note.pinned }),
+   193→        });
+   194→        handleSaved(updated);
+   195→      } catch {
+   196→        // Revert
+   197→        setNotes((prev) =>
+   198→          prev.map((n) =>
+   199→            n.id === note.id ? { ...n, pinned: note.pinned } : n
+   200→          )
+   201→        );
+   202→        toast({ title: "Failed to update note", variant: "destructive" });
+   203→      }
+   204→    },
+   205→    [handleSaved]
+   206→  );
+   207→
+   208→  const handleDeleteNote = useCallback(
+   209→    async (note: Note) => {
+   210→      const prev = notes;
+   211→      setNotes((arr) => arr.filter((n) => n.id !== note.id));
+   212→      try {
+   213→        await api(`/api/notes/${note.id}`, { method: "DELETE" });
+   214→        toast({ title: "Note deleted" });
+   215→      } catch {
+   216→        setNotes(prev);
+   217→        toast({ title: "Failed to delete note", variant: "destructive" });
+   218→      }
+   219→    },
+   220→    [notes]
+   221→  );
+   222→
+   223→  const handleDeleteFolder = useCallback(
+   224→    async (id: string) => {
+   225→      const prev = folders;
+   226→      setFolders((arr) => arr.filter((f) => f.id !== id));
+   227→      setNotes((arr) =>
+   228→        arr.map((n) => (n.folderId === id ? { ...n, folderId: null } : n))
+   229→      );
+   230→      if (activeFolder === id) setActiveFolder("all");
+   231→      try {
+   232→        await api(`/api/note-folders/${id}`, { method: "DELETE" });
+   233→        toast({
+   234→          title: "Folder deleted",
+   235→          description: "Notes moved to All Notes.",
+   236→        });
+   237→      } catch {
+   238→        setFolders(prev);
+   239→        toast({ title: "Failed to delete folder", variant: "destructive" });
+   240→      }
+   241→    },
+   242→    [folders, activeFolder]
+   243→  );
+   244→
+   245→  const handleOpenNote = useCallback((note: Note) => {
+   246→    setEditorNote(note);
+   247→    setEditorOpen(true);
+   248→  }, []);
+   249→
+   250→  const activeFolderName =
+   251→    activeFolder === "all"
+   252→      ? "All notes"
+   253→      : activeFolder === "none"
+   254→      ? "Unsorted"
+   255→      : folders.find((f) => f.id === activeFolder)?.name ?? "Notes";
+   256→
+   257→  return (
+   258→    <div className="space-y-5">
+   259→      {/* Top bar: search + sort */}
+   260→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+   261→        <div className="relative flex-1">
+   262→          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   263→          <Input
+   264→            value={search}
+   265→            onChange={(e) => setSearch(e.target.value)}
+   266→            placeholder="Search notes by title or content…"
+   267→            className="h-11 rounded-full border-border/70 bg-card pl-10 pr-9 shadow-sm"
+   268→          />
+   269→          {search && (
+   270→            <button
+   271→              type="button"
+   272→              onClick={() => setSearch("")}
+   273→              className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+   274→              aria-label="Clear search"
+   275→            >
+   276→              <X className="h-3.5 w-3.5" />
+   277→            </button>
+   278→          )}
+   279→        </div>
+   280→        <div className="flex items-center gap-2">
+   281→          <div className="relative">
+   282→            <SortAsc className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+   283→            <Select
+   284→              value={sort}
+   285→              onValueChange={(v) => setSort(v as SortKey)}
+   286→            >
+   287→              <SelectTrigger className="h-11 w-[150px] rounded-full border-border/70 bg-card pl-9 pr-8 shadow-sm">
+   288→                <SelectValue />
+   289→              </SelectTrigger>
+   290→              <SelectContent>
+   291→                <SelectItem value="recent">Recent</SelectItem>
+   292→                <SelectItem value="date">Date created</SelectItem>
+   293→                <SelectItem value="month">Month</SelectItem>
+   294→                <SelectItem value="type">Type</SelectItem>
+   295→              </SelectContent>
+   296→            </Select>
+   297→          </div>
+   298→        </div>
+   299→      </div>
+   300→
+   301→      {/* Folder tabs */}
+   302→      <FolderTabs
+   303→        folders={folders}
+   304→        active={activeFolder}
+   305→        onSelect={setActiveFolder}
+   306→        onAdd={() => setAddFolderOpen(true)}
+   307→        onDelete={handleDeleteFolder}
+   308→      />
+   309→
+   310→      {/* Quick composer */}
+   311→      <ComposerCard
+   312→        folders={folders}
+   313→        activeFolder={activeFolder}
+   314→        onCreated={handleCreated}
+   315→        onUpdated={handleSaved}
+   316→      />
+   317→
+   318→      {/* Section heading */}
+   319→      <div className="flex items-center justify-between">
+   320→        <h2 className="flex items-center gap-2 text-sm font-semibold">
+   321→          {activeFolderName}
+   322→          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+   323→            {filteredNotes.length}
+   324→          </span>
+   325→        </h2>
+   326→      </div>
+   327→
+   328→      {/* Notes grid / loading / empty */}
+   329→      {loading ? (
+   330→        <SkeletonGrid />
+   331→      ) : filteredNotes.length === 0 ? (
+   332→        <EmptyState
+   333→          hasSearch={!!search.trim()}
+   334→          onCreate={() => {
+   335→            // focus composer by scrolling into view; the composer expands on click
+   336→            const el = document.getElementById("note-composer");
+   337→            if (el) {
+   338→              el.scrollIntoView({ behavior: "smooth", block: "center" });
+   339→            }
+   340→          }}
+   341→        />
+   342→      ) : (
+   343→        <div className="columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
+   344→          <AnimatePresence initial={false}>
+   345→            {filteredNotes.map((note) => (
+   346→              <NoteCard
+   347→                key={note.id}
+   348→                note={note}
+   349→                folder={folders.find((f) => f.id === note.folderId)}
+   350→                onOpen={handleOpenNote}
+   351→                onPin={handleTogglePin}
+   352→                onDelete={handleDeleteNote}
+   353→              />
+   354→            ))}
+   355→          </AnimatePresence>
+   356→        </div>
+   357→      )}
+   358→
+   359→      {/* Editor dialog */}
+   360→      <NoteEditor
+   361→        note={editorNote}
+   362→        folders={folders}
+   363→        open={editorOpen}
+   364→        onOpenChange={setEditorOpen}
+   365→        onSaved={handleSaved}
+   366→        onDeleted={handleDeleted}
+   367→      />
+   368→
+   369→      {/* Add folder dialog */}
+   370→      <AddFolderDialog
+   371→        open={addFolderOpen}
+   372→        onOpenChange={setAddFolderOpen}
+   373→        onCreated={(f) => {
+   374→          setFolders((prev) => [...prev, f]);
+   375→          setActiveFolder(f.id);
+   376→        }}
+   377→      />
+   378→    </div>
+   379→  );
+   380→}
+   381→
+   382→/* ---------------- folder tabs ---------------- */
+   383→
+   384→function FolderTabs({
+   385→  folders,
+   386→  active,
+   387→  onSelect,
+   388→  onAdd,
+   389→  onDelete,
+   390→}: {
+   391→  folders: NoteFolder[];
+   392→  active: string;
+   393→  onSelect: (id: string) => void;
+   394→  onAdd: () => void;
+   395→  onDelete: (id: string) => void;
+   396→}) {
+   397→  return (
+   398→    <div
+   399→      className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+   400→      style={{ scrollSnapType: "x proximity" }}
+   401→    >
+   402→      <FolderPill
+   403→        active={active === "all"}
+   404→        onClick={() => onSelect("all")}
+   405→        icon={<StickyNote className="h-3.5 w-3.5" />}
+   406→      >
+   407→        All Notes
+   408→      </FolderPill>
+   409→      <FolderPill
+   410→        active={active === "none"}
+   411→        onClick={() => onSelect("none")}
+   412→        icon={<Inbox className="h-3.5 w-3.5" />}
+   413→      >
+   414→        Unsorted
+   415→      </FolderPill>
+   416→      {folders.map((f) => (
+   417→        <FolderPill
+   418→          key={f.id}
+   419→          active={active === f.id}
+   420→          onClick={() => onSelect(f.id)}
+   421→          color={f.color}
+   422→          onDelete={() => onDelete(f.id)}
+   423→        >
+   424→          {f.name}
+   425→        </FolderPill>
+   426→      ))}
+   427→      <button
+   428→        type="button"
+   429→        onClick={onAdd}
+   430→        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-border bg-background px-3.5 py-2 text-xs font-medium text-muted-foreground transition hover:border-amber-400 hover:text-amber-600"
+   431→        style={{ scrollSnapAlign: "start" }}
+   432→      >
+   433→        <FolderPlus className="h-3.5 w-3.5" />
+   434→        New folder
+   435→      </button>
+   436→    </div>
+   437→  );
+   438→}
+   439→
+   440→function FolderPill({
+   441→  active,
+   442→  onClick,
+   443→  color,
+   444→  icon,
+   445→  onDelete,
+   446→  children,
+   447→}: {
+   448→  active: boolean;
+   449→  onClick: () => void;
+   450→  color?: string;
+   451→  icon?: ReactNode;
+   452→  onDelete?: () => void;
+   453→  children: ReactNode;
+   454→}) {
+   455→  return (
+   456→    <div
+   457→      role="button"
+   458→      tabIndex={0}
+   459→      onClick={onClick}
+   460→      onKeyDown={(e) => {
+   461→        if (e.key === "Enter" || e.key === " ") {
+   462→          e.preventDefault();
+   463→          onClick();
+   464→        }
+   465→      }}
+   466→      className={cn(
+   467→        "group flex shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-medium transition",
+   468→        active
+   469→          ? "bg-amber-500 text-white shadow-sm"
+   470→          : "border border-border bg-background text-foreground hover:bg-accent"
+   471→      )}
+   472→      style={{ scrollSnapAlign: "start" }}
+   473→    >
+   474→      {icon ?? (
+   475→        <span
+   476→          className="h-2 w-2 rounded-full"
+   477→          style={{ backgroundColor: active ? "white" : color ?? "#a3a3a3" }}
+   478→        />
+   479→      )}
+   480→      <span>{children}</span>
+   481→      {onDelete && (
+   482→        <button
+   483→          type="button"
+   484→          onClick={(e) => {
+   485→            e.stopPropagation();
+   486→            onDelete();
+   487→          }}
+   488→          className={cn(
+   489→            "-mr-1 ml-1 grid h-4 w-4 place-items-center rounded-full opacity-0 transition group-hover:opacity-100",
+   490→            active ? "hover:bg-white/20" : "hover:bg-accent-foreground/10"
+   491→          )}
+   492→          aria-label="Delete folder"
+   493→        >
+   494→          <X className="h-3 w-3" />
+   495→        </button>
+   496→      )}
+   497→    </div>
+   498→  );
+   499→}
+   500→
+   501→/* ---------------- add folder dialog ---------------- */
+   502→
+   503→function AddFolderDialog({
+   504→  open,
+   505→  onOpenChange,
+   506→  onCreated,
+   507→}: {
+   508→  open: boolean;
+   509→  onOpenChange: (open: boolean) => void;
+   510→  onCreated: (folder: NoteFolder) => void;
+   511→}) {
+   512→  const [name, setName] = useState("");
+   513→  const [color, setColor] = useState(FOLDER_COLORS[0]);
+   514→  const [submitting, setSubmitting] = useState(false);
+   515→
+   516→  useEffect(() => {
+   517→    if (open) {
+   518→      setName("");
+   519→      setColor(FOLDER_COLORS[Math.floor(Math.random() * FOLDER_COLORS.length)]);
+   520→    }
+   521→  }, [open]);
+   522→
+   523→  const handleSubmit = async () => {
+   524→    if (!name.trim()) {
+   525→      toast({ title: "Folder name is required", variant: "destructive" });
+   526→      return;
+   527→    }
+   528→    setSubmitting(true);
+   529→    try {
+   530→      const f = await api<NoteFolder>("/api/note-folders", {
+   531→        method: "POST",
+   532→        body: JSON.stringify({ name: name.trim(), color }),
+   533→      });
+   534→      onCreated(f);
+   535→      toast({ title: "Folder created", description: f.name });
+   536→      onOpenChange(false);
+   537→    } catch {
+   538→      toast({ title: "Failed to create folder", variant: "destructive" });
+   539→    } finally {
+   540→      setSubmitting(false);
+   541→    }
+   542→  };
+   543→
+   544→  return (
+   545→    <Dialog open={open} onOpenChange={onOpenChange}>
+   546→      <DialogContent className="max-w-sm">
+   547→        <DialogHeader>
+   548→          <DialogTitle>New folder</DialogTitle>
+   549→          <DialogDescription>
+   550→            Organize your notes with a custom folder.
+   551→          </DialogDescription>
+   552→        </DialogHeader>
+   553→        <div className="space-y-4">
+   554→          <Input
+   555→            placeholder="Folder name"
+   556→            value={name}
+   557→            onChange={(e) => setName(e.target.value)}
+   558→            onKeyDown={(e) => {
+   559→              if (e.key === "Enter") {
+   560→                e.preventDefault();
+   561→                void handleSubmit();
+   562→              }
+   563→            }}
+   564→            autoFocus
+   565→          />
+   566→          <div>
+   567→            <p className="mb-2 text-xs font-medium text-muted-foreground">
+   568→              Pick a color
+   569→            </p>
+   570→            <div className="flex flex-wrap gap-2">
+   571→              {FOLDER_COLORS.map((c) => (
+   572→                <button
+   573→                  key={c}
+   574→                  type="button"
+   575→                  onClick={() => setColor(c)}
+   576→                  className={cn(
+   577→                    "h-8 w-8 rounded-full border-2 transition",
+   578→                    color === c
+   579→                      ? "scale-110 border-foreground"
+   580→                      : "border-transparent"
+   581→                  )}
+   582→                  style={{ backgroundColor: c }}
+   583→                  aria-label={`Color ${c}`}
+   584→                />
+   585→              ))}
+   586→            </div>
+   587→          </div>
+   588→        </div>
+   589→        <DialogFooter>
+   590→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   591→            Cancel
+   592→          </Button>
+   593→          <Button
+   594→            onClick={handleSubmit}
+   595→            disabled={submitting}
+   596→            className="bg-amber-500 text-white hover:bg-amber-600"
+   597→          >
+   598→            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+   599→            Create folder
+   600→          </Button>
+   601→        </DialogFooter>
+   602→      </DialogContent>
+   603→    </Dialog>
+   604→  );
+   605→}
+   606→
+   607→/* ---------------- composer ---------------- */
+   608→
+   609→function ComposerCard({
+   610→  folders,
+   611→  activeFolder,
+   612→  onCreated,
+   613→  onUpdated,
+   614→}: {
+   615→  folders: NoteFolder[];
+   616→  activeFolder: string;
+   617→  onCreated: (note: Note) => void;
+   618→  onUpdated: (note: Note) => void;
+   619→}) {
+   620→  const [expanded, setExpanded] = useState(false);
+   621→  const [type, setType] = useState<NoteType>("text");
+   622→  const [title, setTitle] = useState("");
+   623→  const [content, setContent] = useState("");
+   624→  const [imageData, setImageData] = useState<string | null>(null);
+   625→  const [audioData, setAudioData] = useState<string | null>(null);
+   626→  const [color, setColor] = useState(NOTE_COLORS[0]);
+   627→  const [folderId, setFolderId] = useState<string | null>(
+   628→    activeFolder && activeFolder !== "all" && activeFolder !== "none"
+   629→      ? activeFolder
+   630→      : null
+   631→  );
+   632→  const [noteId, setNoteId] = useState<string | null>(null);
+   633→  const [saveState, setSaveState] = useState<SaveState>("idle");
+   634→  const [drawOpen, setDrawOpen] = useState(false);
+   635→
+   636→  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   637→  const savingRef = useRef(false);
+   638→  const dirtyRef = useRef(false);
+   639→  const imageInputRef = useRef<HTMLInputElement>(null);
+   640→
+   641→  // Refs holding the latest state so the save timer always reads fresh values
+   642→  const stateRef = useLatest({
+   643→    title,
+   644→    content,
+   645→    type,
+   646→    color,
+   647→    imageData,
+   648→    audioData,
+   649→    folderId,
+   650→  });
+   651→  const idRef = useLatest(noteId);
+   652→  const onCreatedRef = useLatest(onCreated);
+   653→  const onUpdatedRef = useLatest(onUpdated);
+   654→
+   655→  // Sync folderId with activeFolder when user switches tabs
+   656→  useEffect(() => {
+   657→    setFolderId(
+   658→      activeFolder && activeFolder !== "all" && activeFolder !== "none"
+   659→        ? activeFolder
+   660→        : null
+   661→    );
+   662→  }, [activeFolder]);
+   663→
+   664→  useEffect(
+   665→    () => () => {
+   666→      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+   667→    },
+   668→    []
+   669→  );
+   670→
+   671→  const doSave = useCallback(async () => {
+   672→    if (savingRef.current) {
+   673→      dirtyRef.current = true;
+   674→      return;
+   675→    }
+   676→    savingRef.current = true;
+   677→    try {
+   678→      while (true) {
+   679→        dirtyRef.current = false;
+   680→        const s = stateRef.current;
+   681→        const currentId = idRef.current;
+   682→
+   683→        const isEmpty =
+   684→          !s.title.trim() && !s.content.trim() && !s.imageData && !s.audioData;
+   685→
+   686→        if (isEmpty) {
+   687→          if (currentId) {
+   688→            try {
+   689→              await api(`/api/notes/${currentId}`, { method: "DELETE" });
+   690→              setNoteId(null);
+   691→            } catch (err) {
+   692→              console.error(err);
+   693→            }
+   694→          }
+   695→        } else {
+   696→          const payload = {
+   697→            folderId: s.folderId,
+   698→            title: s.title.trim(),
+   699→            content: s.content,
+   700→            type: s.type,
+   701→            color: s.color,
+   702→            pinned: false,
+   703→            imageData: s.imageData,
+   704→            audioData: s.audioData,
+   705→          };
+   706→          setSaveState("saving");
+   707→          try {
+   708→            if (!currentId) {
+   709→              const created = await api<Note>("/api/notes", {
+   710→                method: "POST",
+   711→                body: JSON.stringify(payload),
+   712→              });
+   713→              setNoteId(created.id);
+   714→              onCreatedRef.current(created);
+   715→            } else {
+   716→              const updated = await api<Note>(`/api/notes/${currentId}`, {
+   717→                method: "PUT",
+   718→                body: JSON.stringify(payload),
+   719→              });
+   720→              onUpdatedRef.current(updated);
+   721→            }
+   722→            setSaveState("saved");
+   723→            setTimeout(
+   724→              () => setSaveState((prev) => (prev === "saved" ? "idle" : prev)),
+   725→              1500
+   726→            );
+   727→          } catch (err) {
+   728→            console.error(err);
+   729→            setSaveState("error");
+   730→          }
+   731→        }
+   732→        if (!dirtyRef.current) break;
+   733→      }
+   734→    } finally {
+   735→      savingRef.current = false;
+   736→    }
+   737→  }, []);
+   738→
+   739→  const doSaveRef = useLatest(doSave);
+   740→
+   741→  const scheduleSave = useCallback(() => {
+   742→    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+   743→    saveTimerRef.current = setTimeout(() => {
+   744→      void doSaveRef.current();
+   745→    }, 700);
+   746→  }, []);
+   747→
+   748→  const reset = () => {
+   749→    setType("text");
+   750→    setTitle("");
+   751→    setContent("");
+   752→    setImageData(null);
+   753→    setAudioData(null);
+   754→    setColor(NOTE_COLORS[0]);
+   755→    setNoteId(null);
+   756→    setExpanded(false);
+   757→    setSaveState("idle");
+   758→  };
+   759→
+   760→  const handleDone = async () => {
+   761→    if (saveTimerRef.current) {
+   762→      clearTimeout(saveTimerRef.current);
+   763→      saveTimerRef.current = null;
+   764→    }
+   765→    await doSaveRef.current();
+   766→    reset();
+   767→  };
+   768→
+   769→  const handleCancel = async () => {
+   770→    if (saveTimerRef.current) {
+   771→      clearTimeout(saveTimerRef.current);
+   772→      saveTimerRef.current = null;
+   773→    }
+   774→    await doSaveRef.current();
+   775→    reset();
+   776→  };
+   777→
+   778→  const activeTypeBtn = (t: NoteType) => type === t;
+   779→
+   780→  return (
+   781→    <div
+   782→      id="note-composer"
+   783→      className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+   784→      style={{ borderLeftColor: color, borderLeftWidth: 4 }}
+   785→    >
+   786→      {!expanded ? (
+   787→        <button
+   788→          type="button"
+   789→          onClick={() => setExpanded(true)}
+   790→          className="flex w-full items-center gap-3 text-left text-sm text-muted-foreground"
+   791→        >
+   792→          <span className="grid h-7 w-7 place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+   793→            <Plus className="h-4 w-4" />
+   794→          </span>
+   795→          <span>Take a note…</span>
+   796→        </button>
+   797→      ) : (
+   798→        <div className="space-y-3">
+   799→          {/* Title */}
+   800→          <input
+   801→            value={title}
+   802→            onChange={(e) => {
+   803→              setTitle(e.target.value);
+   804→              scheduleSave();
+   805→            }}
+   806→            placeholder="Title"
+   807→            className="w-full bg-transparent text-base font-semibold outline-none placeholder:text-muted-foreground"
+   808→            autoFocus
+   809→          />
+   810→
+   811→          {/* Type-specific content */}
+   812→          {type === "text" && (
+   813→            <textarea
+   814→              value={content}
+   815→              onChange={(e) => {
+   816→                setContent(e.target.value);
+   817→                scheduleSave();
+   818→              }}
+   819→              placeholder="Start writing…"
+   820→              className="min-h-[100px] w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+   821→            />
+   822→          )}
+   823→
+   824→          {type === "image" && (
+   825→            <div className="space-y-2">
+   826→              {imageData ? (
+   827→                <div className="relative">
+   828→                  <img
+   829→                    src={imageData}
+   830→                    alt=""
+   831→                    className="max-h-64 w-full rounded-md border border-border object-cover"
+   832→                  />
+   833→                  <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition hover:opacity-100">
+   834→                    <Button
+   835→                      type="button"
+   836→                      size="sm"
+   837→                      variant="secondary"
+   838→                      onClick={() => imageInputRef.current?.click()}
+   839→                    >
+   840→                      Replace
+   841→                    </Button>
+   842→                    <Button
+   843→                      type="button"
+   844→                      size="sm"
+   845→                      variant="destructive"
+   846→                      onClick={() => {
+   847→                        setImageData(null);
+   848→                        scheduleSave();
+   849→                      }}
+   850→                    >
+   851→                      Remove
+   852→                    </Button>
+   853→                  </div>
+   854→                </div>
+   855→              ) : (
+   856→                <button
+   857→                  type="button"
+   858→                  onClick={() => imageInputRef.current?.click()}
+   859→                  className="flex h-28 w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border text-sm text-muted-foreground transition hover:border-amber-400 hover:bg-amber-50/50 hover:text-amber-700"
+   860→                >
+   861→                  <ImageIcon className="h-5 w-5" />
+   862→                  <span>Click to upload image</span>
+   863→                </button>
+   864→              )}
+   865→              <input
+   866→                ref={imageInputRef}
+   867→                type="file"
+   868→                accept="image/*"
+   869→                className="hidden"
+   870→                onChange={async (e) => {
+   871→                  const f = e.target.files?.[0];
+   872→                  if (f) {
+   873→                    const d = await readFileAsDataURL(f);
+   874→                    setImageData(d);
+   875→                    setType("image");
+   876→                    scheduleSave();
+   877→                  }
+   878→                  e.target.value = "";
+   879→                }}
+   880→              />
+   881→              <input
+   882→                value={content}
+   883→                onChange={(e) => {
+   884→                  setContent(e.target.value);
+   885→                  scheduleSave();
+   886→                }}
+   887→                placeholder="Add a caption…"
+   888→                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+   889→              />
+   890→            </div>
+   891→          )}
+   892→
+   893→          {type === "draw" && (
+   894→            <div className="space-y-2">
+   895→              {imageData ? (
+   896→                <img
+   897→                  src={imageData}
+   898→                  alt=""
+   899→                  className="w-full rounded-md border border-border"
+   900→                />
+   901→              ) : null}
+   902→              <Button
+   903→                type="button"
+   904→                variant="outline"
+   905→                size="sm"
+   906→                onClick={() => setDrawOpen(true)}
+   907→              >
+   908→                <Pencil className="h-3.5 w-3.5" />
+   909→                {imageData ? "Edit drawing" : "Open canvas"}
+   910→              </Button>
+   911→              <input
+   912→                value={content}
+   913→                onChange={(e) => {
+   914→                  setContent(e.target.value);
+   915→                  scheduleSave();
+   916→                }}
+   917→                placeholder="Add a caption…"
+   918→                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+   919→              />
+   920→            </div>
+   921→          )}
+   922→
+   923→          {type === "voice" && (
+   924→            <div className="space-y-2">
+   925→              {audioData && <VoicePlayer src={audioData} />}
+   926→              <VoiceRecorder
+   927→                onComplete={(d) => {
+   928→                  setAudioData(d);
+   929→                  scheduleSave();
+   930→                }}
+   931→              />
+   932→              <input
+   933→                value={content}
+   934→                onChange={(e) => {
+   935→                  setContent(e.target.value);
+   936→                  scheduleSave();
+   937→                }}
+   938→                placeholder="Transcript or note…"
+   939→                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+   940→              />
+   941→            </div>
+   942→          )}
+   943→
+   944→          {/* Color picker */}
+   945→          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+   946→            {NOTE_COLORS.map((c) => (
+   947→              <button
+   948→                key={c}
+   949→                type="button"
+   950→                onClick={() => {
+   951→                  setColor(c);
+   952→                  scheduleSave();
+   953→                }}
+   954→                className={cn(
+   955→                  "h-5 w-5 rounded-full border-2 transition",
+   956→                  color === c
+   957→                    ? "scale-110 border-foreground"
+   958→                    : "border-transparent"
+   959→                )}
+   960→                style={{ backgroundColor: c }}
+   961→                aria-label={`Color ${c}`}
+   962→              />
+   963→            ))}
+   964→          </div>
+   965→
+   966→          {/* Folder selector + actions */}
+   967→          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+   968→            <div className="flex items-center gap-1">
+   969→              <ComposerTypeButton
+   970→                active={activeTypeBtn("text")}
+   971→                onClick={() => {
+   972→                  setType("text");
+   973→                  scheduleSave();
+   974→                }}
+   975→                icon={Type}
+   976→                label="Text"
+   977→              />
+   978→              <ComposerTypeButton
+   979→                active={activeTypeBtn("image")}
+   980→                onClick={() => {
+   981→                  setType("image");
+   982→                  scheduleSave();
+   983→                }}
+   984→                icon={ImageIcon}
+   985→                label="Image"
+   986→              />
+   987→              <ComposerTypeButton
+   988→                active={activeTypeBtn("draw")}
+   989→                onClick={() => setDrawOpen(true)}
+   990→                icon={Pencil}
+   991→                label="Draw"
+   992→              />
+   993→              <ComposerTypeButton
+   994→                active={activeTypeBtn("voice")}
+   995→                onClick={() => {
+   996→                  setType("voice");
+   997→                  scheduleSave();
+   998→                }}
+   999→                icon={Mic}
+  1000→                label="Voice"
+  1001→              />
+  1002→            </div>
+  1003→
+  1004→            <Select
+  1005→              value={folderId ?? "__none"}
+  1006→              onValueChange={(v) => {
+  1007→                setFolderId(v === "__none" ? null : v);
+  1008→                scheduleSave();
+  1009→              }}
+  1010→            >
+  1011→              <SelectTrigger className="h-8 w-[140px]" size="sm">
+  1012→                <SelectValue placeholder="Folder" />
+  1013→              </SelectTrigger>
+  1014→              <SelectContent>
+  1015→                <SelectItem value="__none">No folder</SelectItem>
+  1016→                {folders.map((f) => (
+  1017→                  <SelectItem key={f.id} value={f.id}>
+  1018→                    <span className="inline-flex items-center gap-1.5">
+  1019→                      <span
+  1020→                        className="h-2 w-2 rounded-full"
+  1021→                        style={{ backgroundColor: f.color }}
+  1022→                      />
+  1023→                      {f.name}
+  1024→                    </span>
+  1025→                  </SelectItem>
+  1026→                ))}
+  1027→              </SelectContent>
+  1028→            </Select>
+  1029→
+  1030→            <div className="flex items-center gap-2">
+  1031→              <SaveIndicator state={saveState} />
+  1032→              <Button size="sm" variant="ghost" onClick={handleCancel}>
+  1033→                Close
+  1034→              </Button>
+  1035→              <Button
+  1036→                size="sm"
+  1037→                onClick={handleDone}
+  1038→                className="bg-amber-500 text-white hover:bg-amber-600"
+  1039→              >
+  1040→                Done
+  1041→              </Button>
+  1042→            </div>
+  1043→          </div>
+  1044→        </div>
+  1045→      )}
+  1046→
+  1047→      {/* Drawing canvas dialog */}
+  1048→      <Dialog open={drawOpen} onOpenChange={setDrawOpen}>
+  1049→        <DialogContent className="sm:max-w-2xl">
+  1050→          <DialogHeader>
+  1051→            <DialogTitle>Sketch a drawing</DialogTitle>
+  1052→            <DialogDescription>
+  1053→              Draw with your finger or mouse. Save to attach to the note.
+  1054→            </DialogDescription>
+  1055→          </DialogHeader>
+  1056→          <DrawingCanvas
+  1057→            key="composer"
+  1058→            initialDataUrl={imageData}
+  1059→            height={320}
+  1060→            onSave={(d) => {
+  1061→              setImageData(d);
+  1062→              setType("draw");
+  1063→              setDrawOpen(false);
+  1064→              scheduleSave();
+  1065→            }}
+  1066→          />
+  1067→        </DialogContent>
+  1068→      </Dialog>
+  1069→    </div>
+  1070→  );
+  1071→}
+  1072→
+  1073→function ComposerTypeButton({
+  1074→  active,
+  1075→  onClick,
+  1076→  icon: Icon,
+  1077→  label,
+  1078→}: {
+  1079→  active: boolean;
+  1080→  onClick: () => void;
+  1081→  icon: typeof Type;
+  1082→  label: string;
+  1083→}) {
+  1084→  return (
+  1085→    <button
+  1086→      type="button"
+  1087→      onClick={onClick}
+  1088→      className={cn(
+  1089→        "grid h-9 w-9 place-items-center rounded-full transition",
+  1090→        active
+  1091→          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+  1092→          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+  1093→      )}
+  1094→      title={label}
+  1095→      aria-label={label}
+  1096→    >
+  1097→      <Icon className="h-4 w-4" />
+  1098→    </button>
+  1099→  );
+  1100→}
+  1101→
+  1102→/* ---------------- note card ---------------- */
+  1103→
+  1104→function NoteCard({
+  1105→  note,
+  1106→  folder,
+  1107→  onOpen,
+  1108→  onPin,
+  1109→  onDelete,
+  1110→}: {
+  1111→  note: Note;
+  1112→  folder?: NoteFolder;
+  1113→  onOpen: (note: Note) => void;
+  1114→  onPin: (note: Note) => void;
+  1115→  onDelete: (note: Note) => void;
+  1116→}) {
+  1117→  const hasMedia =
+  1118→    (note.type === "image" || note.type === "draw") && note.imageData;
+  1119→
+  1120→  return (
+  1121→    <motion.div
+  1122→      initial={{ opacity: 0, scale: 0.96 }}
+  1123→      animate={{ opacity: 1, scale: 1 }}
+  1124→      exit={{ opacity: 0, scale: 0.96 }}
+  1125→      transition={{ duration: 0.18 }}
+  1126→      className="mb-4 break-inside-avoid"
+  1127→    >
+  1128→      <div
+  1129→        onClick={() => onOpen(note)}
+  1130→        className="group relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+  1131→        style={{ borderTopColor: note.color, borderTopWidth: 3 }}
+  1132→      >
+  1133→        {/* Hover actions */}
+  1134→        <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+  1135→          <button
+  1136→            type="button"
+  1137→            onClick={(e) => {
+  1138→              e.stopPropagation();
+  1139→              onPin(note);
+  1140→            }}
+  1141→            className="grid h-7 w-7 place-items-center rounded-full bg-background/80 backdrop-blur transition hover:bg-accent"
+  1142→            aria-label={note.pinned ? "Unpin" : "Pin"}
+  1143→          >
+  1144→            <Pin
+  1145→              className={cn(
+  1146→                "h-3.5 w-3.5",
+  1147→                note.pinned
+  1148→                  ? "fill-amber-500 text-amber-500"
+  1149→                  : "text-muted-foreground"
+  1150→              )}
+  1151→            />
+  1152→          </button>
+  1153→          <button
+  1154→            type="button"
+  1155→            onClick={(e) => {
+  1156→              e.stopPropagation();
+  1157→              onDelete(note);
+  1158→            }}
+  1159→            className="grid h-7 w-7 place-items-center rounded-full bg-background/80 text-muted-foreground backdrop-blur transition hover:bg-destructive hover:text-white"
+  1160→            aria-label="Delete"
+  1161→          >
+  1162→            <Trash2 className="h-3.5 w-3.5" />
+  1163→          </button>
+  1164→        </div>
+  1165→
+  1166→        {/* Pinned indicator (always visible if pinned) */}
+  1167→        {note.pinned && (
+  1168→          <div className="absolute left-2 top-2">
+  1169→            <Pin className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+  1170→          </div>
+  1171→        )}
+  1172→
+  1173→        <div className={cn("space-y-1.5", note.pinned && "pl-5")}>
+  1174→          {/* Type + folder */}
+  1175→          <div className="flex items-center gap-1.5 pr-12">
+  1176→            <NoteTypeBadge type={note.type} />
+  1177→            {folder && (
+  1178→              <span className="inline-flex min-w-0 items-center truncate text-[10px] text-muted-foreground">
+  1179→                <FolderIcon className="mr-0.5 h-2.5 w-2.5 shrink-0" />
+  1180→                <span className="truncate">{folder.name}</span>
+  1181→              </span>
+  1182→            )}
+  1183→          </div>
+  1184→
+  1185→          {/* Image / draw thumbnail */}
+  1186→          {hasMedia && (
+  1187→            <img
+  1188→              src={note.imageData!}
+  1189→              alt=""
+  1190→              className="-mx-1 mb-1 max-h-56 w-[calc(100%+0.5rem)] rounded-md object-cover"
+  1191→            />
+  1192→          )}
+  1193→
+  1194→          {/* Voice preview */}
+  1195→          {note.type === "voice" && note.audioData && (
+  1196→            <div className="mb-1 flex items-center gap-2 rounded-md bg-rose-50/70 px-2 py-1.5 dark:bg-rose-950/20">
+  1197→              <Mic className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+  1198→              <div className="flex h-4 flex-1 items-center gap-0.5">
+  1199→                {Array.from({ length: 14 }).map((_, i) => (
+  1200→                  <div
+  1201→                    key={i}
+  1202→                    className="w-0.5 shrink-0 rounded-full bg-rose-400"
+  1203→                    style={{
+  1204→                      height: `${4 + Math.abs(Math.sin(i * 1.7)) * 10}px`,
+  1205→                    }}
+  1206→                  />
+  1207→                ))}
+  1208→              </div>
+  1209→              <span className="shrink-0 text-[10px] text-muted-foreground">
+  1210→                Voice
+  1211→              </span>
+  1212→            </div>
+  1213→          )}
+  1214→
+  1215→          {/* Title */}
+  1216→          {note.title && (
+  1217→            <h3 className="line-clamp-2 pr-6 text-sm font-semibold leading-tight">
+  1218→              {note.title}
+  1219→            </h3>
+  1220→          )}
+  1221→
+  1222→          {/* Content */}
+  1223→          {note.content && (
+  1224→            <p className="line-clamp-[10] whitespace-pre-wrap break-words text-xs text-muted-foreground">
+  1225→              {note.content}
+  1226→            </p>
+  1227→          )}
+  1228→
+  1229→          {/* Footer */}
+  1230→          <div className="flex items-center justify-between pt-1 text-[10px] text-muted-foreground">
+  1231→            <span className="flex items-center gap-1">
+  1232→              <Clock className="h-2.5 w-2.5" />
+  1233→              {timeAgo(note.updatedAt)}
+  1234→            </span>
+  1235→          </div>
+  1236→        </div>
+  1237→      </div>
+  1238→    </motion.div>
+  1239→  );
+  1240→}
+  1241→
+  1242→/* ---------------- skeleton & empty state ---------------- */
+  1243→
+  1244→function SkeletonGrid() {
+  1245→  return (
+  1246→    <div className="columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
+  1247→      {Array.from({ length: 8 }).map((_, i) => (
+  1248→        <div key={i} className="mb-4 break-inside-avoid">
+  1249→          <Skeleton
+  1250→            className="rounded-xl border border-border/60"
+  1251→            style={{ height: `${120 + (i % 4) * 50}px` }}
+  1252→          />
+  1253→        </div>
+  1254→      ))}
+  1255→    </div>
+  1256→  );
+  1257→}
+  1258→
+  1259→function EmptyState({
+  1260→  hasSearch,
+  1261→  onCreate,
+  1262→}: {
+  1263→  hasSearch: boolean;
+  1264→  onCreate: () => void;
+  1265→}) {
+  1266→  return (
+  1267→    <div className="grid place-items-center rounded-2xl border border-dashed border-border/70 bg-card/50 px-6 py-14 text-center">
+  1268→      <div className="grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+  1269→        <StickyNote className="h-7 w-7" />
+  1270→      </div>
+  1271→      <h3 className="mt-4 text-base font-semibold">
+  1272→        {hasSearch ? "No matching notes" : "No notes yet"}
+  1273→      </h3>
+  1274→      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+  1275→        {hasSearch
+  1276→          ? "Try a different search term or clear the search to see all notes."
+  1277→          : "Capture a thought, sketch an idea, or record a voice note — it saves automatically."}
+  1278→      </p>
+  1279→      {!hasSearch && (
+  1280→        <Button
+  1281→          onClick={onCreate}
+  1282→          className="mt-4 bg-amber-500 text-white hover:bg-amber-600"
+  1283→        >
+  1284→          <Plus className="h-4 w-4" />
+  1285→          Take a note
+  1286→        </Button>
+  1287→      )}
+  1288→    </div>
+  1289→  );
+  1290→}
+  1291→
