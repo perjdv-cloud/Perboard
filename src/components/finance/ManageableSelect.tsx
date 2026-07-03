@@ -67,7 +67,7 @@ export default function ManageableSelect({
           aria-expanded={open}
           aria-haspopup="listbox"
           className={cn(
-            "flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm ring-offset-background transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 data-[placeholder]:text-muted-foreground",
+            "flex h-8 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-background px-2.5 py-1 text-sm shadow-sm ring-offset-background transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 data-[placeholder]:text-muted-foreground",
             className
           )}
         >

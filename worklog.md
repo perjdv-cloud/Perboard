@@ -515,3 +515,25 @@ Work Log:
 
 Stage Summary:
 - Account & category dropdowns (trigger + list items) now show only text — no icons
+
+---
+Task ID: 23
+Agent: Orchestrator
+Task: Finance — compact one-line summary, compact entry, income+expense side-by-side (2 cols each) as card grids with account tabs
+
+Work Log:
+- Replaced the 3 SummaryCard grid with a single compact one-line summary bar: three pill chips (Income/Expense/Net) in a flex row inside one bordered container, each with a small icon + label + value (text-sm bold). Net shows emerald when positive, rose when negative. Removed the now-unused SummaryCard component.
+- Compacted the inline entry: padding p-3/p-4 → p-2.5/p-3; toggle h-9 → h-8 with "In"/"Out" labels (text-xs); Amount/Date h-9 → h-8 (text-sm); Account/Category widths tightened; ManageableSelect trigger h-9 → h-8; InlineImageButton h-9 → h-8 (text-xs); Add button h-9 → h-8 (text-xs); gaps 2 → 1.5
+- Reduced top-level spacing space-y-5 → space-y-3
+- Restructured Income + Expense into a parallel 4-column grid: `grid grid-cols-1 lg:grid-cols-4`, Income section `lg:col-span-2`, Expense section `lg:col-span-2`. They stack on mobile and sit side-by-side on desktop.
+- Income section: compact heading (icon + "Income" + count badge + sort select), account tabs (All + per-account, swipable), then a `grid grid-cols-2 gap-2` of IncomeCards
+- Expense section: converted the old expense LIST into a card grid — new ExpenseCard component (rose-themed mirror of IncomeCard: receipt images up to 2, account badge, −amount, category + date). `grid grid-cols-2 gap-2`
+- Both income and expense cards now render in 2-column grids side-by-side (4 columns total on desktop)
+- Verified via Agent Browser + VLM at desktop 1280×900: summary is one compact line (Income ₹10,769 | Expense ₹26,423 | Net −₹15,654); income & expenses are parallel side-by-side (2 cols each); both are card grids; account tabs (All/Card/CRL) above income; no layout issues; no console errors
+- `bun run lint` clean
+
+Stage Summary:
+- Summary (income/expense/net) is now a single compact one-line bar
+- Inline entry is compact (h-8 controls, tighter spacing, "In"/"Out" toggle)
+- Income and Expenses are shown side-by-side in a 4-column grid (2 cols each), both as 2-column card grids
+- Income keeps account tabs; expenses are now cards (was a list)

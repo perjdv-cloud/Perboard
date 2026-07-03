@@ -294,38 +294,70 @@ export default function FinanceTab() {
   const isIncomeEntry = entry.type === "income";
 
   return (
-    <div className="space-y-5">
-      {/* ---------- Summary cards ---------- */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SummaryCard
-          label="Total Income"
-          value={totalIncome}
-          icon={<TrendingUp className="h-4 w-4" />}
-          tone="emerald"
-          loading={loading}
-        />
-        <SummaryCard
-          label="Total Expense"
-          value={totalExpense}
-          icon={<TrendingDown className="h-4 w-4" />}
-          tone="rose"
-          loading={loading}
-        />
-        <SummaryCard
-          label="Net Balance"
-          value={net}
-          icon={<Wallet className="h-4 w-4" />}
-          tone={net >= 0 ? "emerald" : "rose"}
-          loading={loading}
-          prefix={net >= 0 ? "" : "−"}
-        />
-      </section>
+    <div className="space-y-3">
+      {/* ---------- Compact summary (one line) ---------- */}
+      <div className="flex items-stretch gap-1.5 overflow-x-auto rounded-lg border bg-card p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1.5 dark:bg-emerald-950/40">
+          <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+          <div className="min-w-0 leading-tight">
+            <p className="text-[9px] font-medium uppercase tracking-wide text-emerald-700/70 dark:text-emerald-300/70">Income</p>
+            {loading ? (
+              <Skeleton className="h-3.5 w-14" />
+            ) : (
+              <p className="truncate text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                {formatCurrency(totalIncome)}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-rose-50 px-2.5 py-1.5 dark:bg-rose-950/40">
+          <TrendingDown className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+          <div className="min-w-0 leading-tight">
+            <p className="text-[9px] font-medium uppercase tracking-wide text-rose-700/70 dark:text-rose-300/70">Expense</p>
+            {loading ? (
+              <Skeleton className="h-3.5 w-14" />
+            ) : (
+              <p className="truncate text-sm font-bold text-rose-700 dark:text-rose-300">
+                {formatCurrency(totalExpense)}
+              </p>
+            )}
+          </div>
+        </div>
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 py-1.5",
+            net >= 0
+              ? "bg-emerald-50 dark:bg-emerald-950/40"
+              : "bg-rose-50 dark:bg-rose-950/40"
+          )}
+        >
+          <Wallet className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 leading-tight">
+            <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Net</p>
+            {loading ? (
+              <Skeleton className="h-3.5 w-14" />
+            ) : (
+              <p
+                className={cn(
+                  "truncate text-sm font-bold",
+                  net >= 0
+                    ? "text-emerald-700 dark:text-emerald-300"
+                    : "text-rose-700 dark:text-rose-300"
+                )}
+              >
+                {net < 0 ? "−" : ""}
+                {formatCurrency(Math.abs(net))}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
 
-      {/* ---------- Inline entry ---------- */}
+      {/* ---------- Inline entry (compact) ---------- */}
       <Card className="gap-0 py-0">
-        <CardContent className="px-3 py-3 sm:px-4 sm:py-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Type toggle */}
+        <CardContent className="px-2.5 py-2.5 sm:px-3 sm:py-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Type toggle (compact) */}
             <ToggleGroup
               type="single"
               value={entry.type}
@@ -339,21 +371,21 @@ export default function FinanceTab() {
               <ToggleGroupItem
                 value="income"
                 aria-label="Income"
-                className="h-9 flex-1 data-[state=on]:bg-emerald-500 data-[state=on]:text-white data-[state=on]:hover:bg-emerald-500/90 sm:flex-none"
+                className="h-8 flex-1 px-3 text-xs data-[state=on]:bg-emerald-500 data-[state=on]:text-white data-[state=on]:hover:bg-emerald-500/90 sm:flex-none"
               >
-                <TrendingUp className="h-4 w-4" /> Income
+                <TrendingUp className="h-3.5 w-3.5" /> In
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="expense"
                 aria-label="Expense"
-                className="h-9 flex-1 data-[state=on]:bg-rose-500 data-[state=on]:text-white data-[state=on]:hover:bg-rose-500/90 sm:flex-none"
+                className="h-8 flex-1 px-3 text-xs data-[state=on]:bg-rose-500 data-[state=on]:text-white data-[state=on]:hover:bg-rose-500/90 sm:flex-none"
               >
-                <TrendingDown className="h-4 w-4" /> Expense
+                <TrendingDown className="h-3.5 w-3.5" /> Out
               </ToggleGroupItem>
             </ToggleGroup>
 
             {/* Account (manageable) */}
-            <div className="w-full min-w-[8rem] sm:w-40">
+            <div className="w-full min-w-[7rem] sm:w-36">
               <ManageableSelect
                 value={entry.account}
                 onValueChange={(v) =>
@@ -367,7 +399,7 @@ export default function FinanceTab() {
             </div>
 
             {/* Category (manageable) */}
-            <div className="w-full min-w-[8rem] sm:w-44">
+            <div className="w-full min-w-[7rem] sm:w-40">
               <ManageableSelect
                 value={entry.category}
                 onValueChange={(v) =>
@@ -395,7 +427,7 @@ export default function FinanceTab() {
               onKeyDown={handleKeyDown}
               onBlur={handleBlurSave}
               className={cn(
-                "h-9 w-full font-semibold sm:w-32",
+                "h-8 w-full text-sm font-semibold sm:w-28",
                 isIncomeEntry ? "text-emerald-700" : "text-rose-700"
               )}
             />
@@ -408,7 +440,7 @@ export default function FinanceTab() {
                 setEntry((prev) => ({ ...prev, date: e.target.value }))
               }
               onKeyDown={handleKeyDown}
-              className="h-9 w-full sm:w-40"
+              className="h-8 w-full text-sm sm:w-36"
             />
 
             {/* Image uploads (2 receipt images) */}
@@ -445,7 +477,7 @@ export default function FinanceTab() {
               onClick={() => void saveEntry()}
               disabled={inlineSaving}
               className={cn(
-                "h-9 w-full gap-1.5 sm:w-auto",
+                "h-8 w-full gap-1.5 text-xs sm:w-auto",
                 isIncomeEntry
                   ? "bg-emerald-600 text-white hover:bg-emerald-600/90"
                   : "bg-rose-600 text-white hover:bg-rose-600/90"
@@ -467,156 +499,117 @@ export default function FinanceTab() {
         </CardContent>
       </Card>
 
-      {/* ---------- Income section (with account tabs + grid) ---------- */}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-emerald-600" />
-            <h2 className="text-sm font-semibold">Income</h2>
-            <Badge variant="secondary" className="font-medium">
-              {incomes.length}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              Sort by
-            </span>
+      {/* ---------- Income + Expense side-by-side (2 cols each) ---------- */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+        {/* ===== Income (2 cols, with account tabs) ===== */}
+        <section className="space-y-2 lg:col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="h-4 w-4 text-emerald-600" />
+              <h2 className="text-sm font-semibold">Income</h2>
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
+                {displayedIncomes.length}
+              </Badge>
+            </div>
             <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-              <SelectTrigger size="sm" className="h-8 w-36">
+              <SelectTrigger size="sm" className="h-7 w-24 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="recent">Recent</SelectItem>
-                <SelectItem value="date">Date created</SelectItem>
+                <SelectItem value="date">Date</SelectItem>
                 <SelectItem value="month">Month</SelectItem>
                 <SelectItem value="type">Type</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        {/* Account tabs (swipable, hidden scrollbar, scroll-snap) */}
-        <div
-          className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          role="tablist"
-          aria-label="Income accounts"
-        >
-          <AccountTab
-            label="All"
-            active={accountTab === "All"}
-            onClick={() => setAccountTab("All")}
-            count={incomes.length}
-          />
-          {incomeAccounts.map((a) => (
+          {/* Account tabs (swipable) */}
+          <div
+            className="flex gap-1.5 overflow-x-auto pb-0.5 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            role="tablist"
+            aria-label="Income accounts"
+          >
             <AccountTab
-              key={a}
-              label={a}
-              active={accountTab === a}
-              onClick={() => setAccountTab(a)}
-              count={incomes.filter((t) => t.account === a).length}
-              icon={<AccountIcon account={a} className="h-3.5 w-3.5" />}
+              label="All"
+              active={accountTab === "All"}
+              onClick={() => setAccountTab("All")}
+              count={incomes.length}
             />
-          ))}
-        </div>
-
-        {/* Income grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
-            ))}
-          </div>
-        ) : displayedIncomes.length === 0 ? (
-          <EmptyState
-            icon={<TrendingUp className="h-6 w-6" />}
-            title="No income yet"
-            description="Add your first income using the row above. Income entries appear here grouped by account."
-            tone="emerald"
-          />
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {displayedIncomes.map((t) => (
-              <IncomeCard
-                key={t.id}
-                transaction={t}
-                onClick={() => openTransaction(t)}
+            {incomeAccounts.map((a) => (
+              <AccountTab
+                key={a}
+                label={a}
+                active={accountTab === a}
+                onClick={() => setAccountTab(a)}
+                count={incomes.filter((t) => t.account === a).length}
               />
             ))}
           </div>
-        )}
-      </section>
 
-      {/* ---------- Expense section ---------- */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <TrendingDown className="h-4 w-4 text-rose-600" />
-          <h2 className="text-sm font-semibold">Recent Expenses</h2>
-          <Badge variant="secondary" className="font-medium">
-            {expenses.length}
-          </Badge>
-        </div>
-
-        {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded-lg" />
-            ))}
-          </div>
-        ) : expenses.length === 0 ? (
-          <EmptyState
-            icon={<TrendingDown className="h-6 w-6" />}
-            title="No expenses recorded"
-            description="Track where your money goes — add an expense using the row above."
-            tone="rose"
-          />
-        ) : (
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <ul
-              role="list"
-              className="max-h-96 divide-y divide-border overflow-y-auto"
-            >
-              {expenses.slice(0, 30).map((t) => (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    onClick={() => openTransaction(t)}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent/50 sm:px-4"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300">
-                        <CategoryIcon category={t.category} className="h-4 w-4" />
-                        {t.imageData && (
-                          <span className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-background text-rose-500 shadow-sm">
-                            <Receipt className="h-2.5 w-2.5" />
-                          </span>
-                        )}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium capitalize">
-                          {t.category}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          <span className="capitalize">{t.category}</span>
-                          <span className="mx-1">·</span>
-                          {formatDate(t.date)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant="outline" className="hidden capitalize sm:inline-flex">
-                        {t.account}
-                      </Badge>
-                      <span className="text-sm font-semibold text-rose-600">
-                        −{formatCurrency(t.amount)}
-                      </span>
-                    </div>
-                  </button>
-                </li>
+          {/* Income card grid (2 cols) */}
+          {loading ? (
+            <div className="grid grid-cols-2 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 rounded-lg" />
               ))}
-            </ul>
+            </div>
+          ) : displayedIncomes.length === 0 ? (
+            <EmptyState
+              icon={<TrendingUp className="h-6 w-6" />}
+              title="No income yet"
+              description="Add income using the row above."
+              tone="emerald"
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {displayedIncomes.map((t) => (
+                <IncomeCard
+                  key={t.id}
+                  transaction={t}
+                  onClick={() => openTransaction(t)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ===== Expense (2 cols, card grid) ===== */}
+        <section className="space-y-2 lg:col-span-2">
+          <div className="flex items-center gap-1.5">
+            <TrendingDown className="h-4 w-4 text-rose-600" />
+            <h2 className="text-sm font-semibold">Expenses</h2>
+            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
+              {expenses.length}
+            </Badge>
           </div>
-        )}
-      </section>
+
+          {loading ? (
+            <div className="grid grid-cols-2 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 rounded-lg" />
+              ))}
+            </div>
+          ) : expenses.length === 0 ? (
+            <EmptyState
+              icon={<TrendingDown className="h-6 w-6" />}
+              title="No expenses"
+              description="Track spending using the row above."
+              tone="rose"
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {expenses.slice(0, 30).map((t) => (
+                <ExpenseCard
+                  key={t.id}
+                  transaction={t}
+                  onClick={() => openTransaction(t)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {/* ---------- Dialog ---------- */}
       <TransactionDialog
@@ -631,59 +624,6 @@ export default function FinanceTab() {
 }
 
 /* ---------------- Sub-components ---------------- */
-
-function SummaryCard({
-  label,
-  value,
-  icon,
-  tone,
-  loading,
-  prefix = "",
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  tone: "emerald" | "rose";
-  loading?: boolean;
-  prefix?: string;
-}) {
-  const toneClasses =
-    tone === "emerald"
-      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-      : "bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300";
-  const iconBg =
-    tone === "emerald"
-      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"
-      : "bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300";
-  return (
-    <div className="flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm">
-      <span
-        className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-lg",
-          iconBg
-        )}
-      >
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        {loading ? (
-          <Skeleton className="mt-1 h-6 w-24" />
-        ) : (
-          <p
-            className={cn(
-              "truncate text-xl font-bold tracking-tight",
-              toneClasses
-            )}
-          >
-            {prefix}
-            {formatCurrency(value)}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function AccountTab({
   label,
@@ -797,6 +737,76 @@ function IncomeCard({
   );
 }
 
+function ExpenseCard({
+  transaction,
+  onClick,
+}: {
+  transaction: Transaction;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col gap-2 overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-rose-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50"
+    >
+      {/* Receipt images (up to 2) */}
+      {(transaction.imageData || transaction.imageData2) && (
+        <div className="relative flex w-full gap-0.5 overflow-hidden bg-muted">
+          {transaction.imageData && (
+            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
+              <img
+                src={transaction.imageData}
+                alt="Receipt 1"
+                loading="lazy"
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+          )}
+          {transaction.imageData2 && (
+            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
+              <img
+                src={transaction.imageData2}
+                alt="Receipt 2"
+                loading="lazy"
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+          )}
+          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-background/90 text-rose-600 shadow-sm">
+            <Receipt className="h-3 w-3" />
+          </span>
+        </div>
+      )}
+      <div className="flex flex-col gap-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <Badge
+            variant="outline"
+            className="gap-1 border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300"
+          >
+            <AccountIcon account={transaction.account} className="h-3 w-3" />
+            {transaction.account}
+          </Badge>
+          <span className="text-base font-bold text-rose-600">
+            −{formatCurrency(transaction.amount)}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium capitalize">
+            {transaction.category}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+            <CategoryIcon category={transaction.category} className="h-3 w-3" />
+            <span className="capitalize">{transaction.category}</span>
+            <span className="mx-0.5">·</span>
+            {formatDate(transaction.date)}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function EmptyState({
   icon,
   title,
@@ -852,7 +862,7 @@ function InlineImageButton({
       size="sm"
       onClick={onPick}
       className={cn(
-        "h-9 shrink-0 gap-1.5 px-3",
+        "h-8 shrink-0 gap-1 px-2.5 text-xs",
         imageData
           ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
           : ""
