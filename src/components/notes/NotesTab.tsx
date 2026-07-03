@@ -22,7 +22,6 @@ import {
   Mic,
   Clock,
   Folder as FolderIcon,
-  Inbox,
   StickyNote,
   Loader2,
   SortAsc,
@@ -139,9 +138,7 @@ export default function NotesTab() {
 
   const filteredNotes = useMemo(() => {
     let arr = notes;
-    if (activeFolder === "none") {
-      arr = arr.filter((n) => n.folderId === null);
-    } else if (activeFolder !== "all") {
+    if (activeFolder !== "all") {
       arr = arr.filter((n) => n.folderId === activeFolder);
     }
     if (search.trim()) {
@@ -223,6 +220,15 @@ export default function NotesTab() {
 
   const handleDeleteFolder = useCallback(
     async (id: string) => {
+      const folder = folders.find((f) => f.id === id);
+      const name = folder?.name ?? "this folder";
+      const count = notes.filter((n) => n.folderId === id).length;
+      const msg =
+        count > 0
+          ? `Delete "${name}"? Its ${count} note(s) will be moved to All Notes.`
+          : `Delete "${name}"?`;
+      const ok = window.confirm(msg);
+      if (!ok) return;
       const prev = folders;
       setFolders((arr) => arr.filter((f) => f.id !== id));
       setNotes((arr) =>
@@ -240,7 +246,7 @@ export default function NotesTab() {
         toast({ title: "Failed to delete folder", variant: "destructive" });
       }
     },
-    [folders, activeFolder]
+    [folders, notes, activeFolder]
   );
 
   const handleOpenNote = useCallback((note: Note) => {
@@ -251,8 +257,6 @@ export default function NotesTab() {
   const activeFolderName =
     activeFolder === "all"
       ? "All notes"
-      : activeFolder === "none"
-      ? "Unsorted"
       : folders.find((f) => f.id === activeFolder)?.name ?? "Notes";
 
   return (
@@ -398,28 +402,58 @@ function FolderTabs({
   onAdd: () => void;
   onDelete: (id: string) => void;
 }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  // Swipe left/right on the pill row to move between folders
+  const swipe = (dir: 1 | -1) => {
+    const ordered: { id: string }[] = [
+      { id: "all" },
+      ...folders.map((f) => ({ id: f.id })),
+    ];
+    const idx = ordered.findIndex((o) => o.id === active);
+    if (idx === -1) {
+      onSelect("all");
+      return;
+    }
+    const next = idx + dir;
+    if (next < 0) return;
+    if (next >= ordered.length) return;
+    onSelect(ordered[next].id);
+    // scroll the chosen pill into view
+    requestAnimationFrame(() => {
+      const el = scrollerRef.current?.querySelector<HTMLElement>(
+        `[data-folder-id="${ordered[next].id}"]`
+      );
+      el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    });
+  };
+
   return (
-    <div
+    <motion.div
+      ref={scrollerRef}
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.18}
+      onDragEnd={(_, info) => {
+        const threshold = 40;
+        if (info.offset.x < -threshold) swipe(1);
+        else if (info.offset.x > threshold) swipe(-1);
+      }}
       className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-      style={{ scrollSnapType: "x proximity" }}
+      style={{ scrollSnapType: "x proximity", cursor: "grab" }}
     >
       <FolderPill
+        folderId="all"
         active={active === "all"}
         onClick={() => onSelect("all")}
         icon={<StickyNote className="h-3.5 w-3.5" />}
       >
         All Notes
       </FolderPill>
-      <FolderPill
-        active={active === "none"}
-        onClick={() => onSelect("none")}
-        icon={<Inbox className="h-3.5 w-3.5" />}
-      >
-        Unsorted
-      </FolderPill>
       {folders.map((f) => (
         <FolderPill
           key={f.id}
+          folderId={f.id}
           active={active === f.id}
           onClick={() => onSelect(f.id)}
           color={f.color}
@@ -437,11 +471,12 @@ function FolderTabs({
         <FolderPlus className="h-3.5 w-3.5" />
         New folder
       </button>
-    </div>
+    </motion.div>
   );
 }
 
 function FolderPill({
+  folderId,
   active,
   onClick,
   color,
@@ -449,6 +484,7 @@ function FolderPill({
   onDelete,
   children,
 }: {
+  folderId: string;
   active: boolean;
   onClick: () => void;
   color?: string;
@@ -458,6 +494,7 @@ function FolderPill({
 }) {
   return (
     <div
+      data-folder-id={folderId}
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -490,8 +527,10 @@ function FolderPill({
             onDelete();
           }}
           className={cn(
-            "-mr-1 ml-1 grid h-4 w-4 place-items-center rounded-full opacity-0 transition group-hover:opacity-100",
-            active ? "hover:bg-white/20" : "hover:bg-accent-foreground/10"
+            "-mr-1 ml-0.5 grid h-5 w-5 place-items-center rounded-full transition",
+            active
+              ? "bg-white/20 text-white hover:bg-white/30"
+              : "bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           )}
           aria-label="Delete folder"
         >

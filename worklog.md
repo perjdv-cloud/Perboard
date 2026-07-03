@@ -211,3 +211,26 @@ Stage Summary:
 - Notes tab top area is now a single inline row: Add note + Search + Sort
 - Note creation happens via a clean dialog (auto-save preserved) instead of an inline expanding card
 - All existing functionality retained: text/image/draw/voice, color picker, folder selector, auto-save, enlarge-on-click, pin/delete
+
+---
+Task ID: 9
+Agent: Orchestrator
+Task: Notes — remove Unsorted, prompt-confirm folder delete, always-visible X, swipable folders
+
+Work Log:
+- Removed the "Unsorted" (activeFolder==="none") folder pill from FolderTabs
+- Removed the "none" branch in filteredNotes (notes without a folder now show under "All Notes")
+- Removed the "Unsorted" case from activeFolderName
+- Removed the now-unused `Inbox` icon import
+- handleDeleteFolder now shows a window.confirm prompt naming the folder + its note count before deleting (e.g. `Delete "Care"? Its 2 note(s) will be moved to All Notes.`); aborts if cancelled
+- FolderPill delete (X) button is now always visible: removed `opacity-0 group-hover:opacity-100`, gave it a persistent muted background chip (bg-white/20 on active pill, bg-muted on inactive) that turns destructive-red on hover
+- Made the folder tabs row genuinely swipable: wrapped the pill scroller in a framer-motion `motion.div` with `drag="x"`, `dragConstraints={{left:0,right:0}}` (snap-back), `dragElastic={0.18}`, and `onDragEnd` that swipes to the next/previous folder when |offset.x| > 40px. Selected pill scrolls into view smoothly. Cursor shows grab.
+- Added `data-folder-id` to each pill for scrollIntoView targeting
+- Verified via Agent Browser: no Unsorted pill, X always visible, delete X triggers a JS confirm dialog ("Delete "Care"? Its 2 note(s) will be moved to All Notes."), swipe-left moves All Notes → Care, swipe-right moves Care → All Notes
+- `bun run lint` clean; no console/runtime errors
+
+Stage Summary:
+- Notes folder tabs: All Notes + user folders only (no Unsorted)
+- Folder deletion requires confirmation via a prompt that states the folder name + affected note count
+- Delete X is always visible on every folder pill
+- Folder row is swipable (drag left/right to switch folders) in addition to clickable/scrollable
