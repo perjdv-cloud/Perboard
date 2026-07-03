@@ -31,8 +31,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Loader2, Check, TrendingDown, TrendingUp } from "lucide-react";
-import { api, formatCurrency, formatDateTime } from "@/lib/api";
+import { Trash2, Loader2, Check, TrendingDown, TrendingUp, ImagePlus, Receipt } from "lucide-react";
+import { api, formatCurrency, formatDateTime, readFileAsDataURL } from "@/lib/api";
 import type { Transaction, TransactionType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -85,6 +85,8 @@ export default function TransactionDialog({
   const [saving, setSaving] = React.useState(false);
   const [savedFlash, setSavedFlash] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [imageBusy, setImageBusy] = React.useState(false);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
 
   // Sync local form when the incoming transaction changes.
   React.useEffect(() => {
@@ -152,6 +154,30 @@ export default function TransactionDialog({
 
   const updateField = <K extends keyof Transaction>(key: K, value: Transaction[K]) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  // Image upload / clear
+  const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setImageBusy(true);
+    try {
+      const d = await readFileAsDataURL(f);
+      const next = { ...form, imageData: d };
+      setForm(next);
+      await persist({ imageData: d });
+    } catch {
+      toast({ title: "Could not read image", variant: "destructive" });
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    const next = { ...form, imageData: null };
+    setForm(next);
+    await persist({ imageData: null });
   };
 
   return (
@@ -254,16 +280,68 @@ export default function TransactionDialog({
             </div>
           </div>
 
-          {/* Description */}
+          {/* Receipt image upload */}
           <div className="space-y-1.5">
-            <Label htmlFor="dlg-desc">Description</Label>
-            <Input
-              id="dlg-desc"
-              value={form.description}
-              placeholder="What was this for?"
-              onChange={(e) => updateField("description", e.target.value)}
-              onBlur={() => void persist()}
+            <Label>Receipt image</Label>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImagePick}
             />
+            {form.imageData ? (
+              <div className="group relative overflow-hidden rounded-lg border">
+                <img
+                  src={form.imageData}
+                  alt="Receipt"
+                  className="max-h-56 w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent p-2">
+                  <span className="flex items-center gap-1 text-xs font-medium text-white">
+                    <Receipt className="h-3.5 w-3.5" /> Receipt attached
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 gap-1 px-2 text-xs"
+                      disabled={imageBusy}
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      {imageBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+                      Replace
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-7 gap-1 px-2 text-xs"
+                      disabled={imageBusy}
+                      onClick={handleRemoveImage}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={imageBusy}
+                className="flex h-24 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground transition hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-700 disabled:opacity-60"
+              >
+                {imageBusy ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <ImagePlus className="h-5 w-5" />
+                )}
+                <span>{imageBusy ? "Uploading…" : "Add receipt image"}</span>
+              </button>
+            )}
           </div>
 
           {/* Category + Date */}
@@ -361,7 +439,7 @@ export default function TransactionDialog({
                   <span className="font-medium text-foreground">
                     {formatCurrency(form.amount)}
                   </span>{" "}
-                  ({form.description || form.category}) will be permanently
+                  ({form.category}) will be permanently
                   removed.
                 </AlertDialogDescription>
               </AlertDialogHeader>

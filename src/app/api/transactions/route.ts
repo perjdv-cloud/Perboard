@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/transactions
-// Body: { type, account, amount, description, category, date }
+// Body: { type, account, amount, description, category, date, imageData? }
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
 
@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
     typeof body.category === "string" && body.category.trim()
       ? body.category.trim()
       : "General";
+  const imageData =
+    typeof body.imageData === "string" && body.imageData.startsWith("data:")
+      ? body.imageData
+      : null;
   const date = body.date ? new Date(body.date) : new Date();
 
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -57,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   const created = await db.transaction.create({
-    data: { type, account, amount, description, category, date },
+    data: { type, account, amount, description, category, imageData, date },
   });
 
   return NextResponse.json(

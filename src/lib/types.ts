@@ -55,6 +55,7 @@ export interface Transaction {
   amount: number;
   description: string;
   category: string;
+  imageData: string | null;
   date: string;
   createdAt: string;
   updatedAt: string;

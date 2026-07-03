@@ -66,6 +66,7 @@ model Transaction {
   amount      Float    @default(0)
   description String   @default("")
   category    String   @default("General")
+  imageData   String?  // base64 data URL (receipt/bill photo)
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

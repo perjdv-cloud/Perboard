@@ -417,3 +417,31 @@ Work Log:
 
 Stage Summary:
 - Files grid now shows 3 cards per row on mobile (was 2)
+
+---
+Task ID: 19
+Agent: Orchestrator
+Task: Finance — simplify entry to account/category/date/amount + add image upload
+
+Work Log:
+- Added `imageData String?` (base64 data URL) to the Transaction Prisma model; ran db:push + db:generate
+- Updated Transaction type in src/lib/types.ts to include `imageData: string | null`
+- Updated POST /api/transactions to accept + persist `imageData` (validated as data: URL)
+- Updated PUT /api/transactions/[id] to accept `imageData` (data URL or null to clear)
+- FinanceTab inline entry: REMOVED the Description input field; reordered to Income/Expense toggle → Account → Category → Amount → Date → Image upload → Add
+- Added an Image upload button to the inline entry: shows ImagePlus icon (or thumbnail preview when an image is selected), with a × remove button; turns emerald when an image is attached; included imageData in the POST payload
+- saveEntry: removed the description-required guard (now only requires amount > 0); clears amount + image after save (keeps sticky account/category/date defaults); refocuses amount for rapid re-entry
+- handleBlurSave: simplified to fire on amount > 0 only (no description requirement)
+- TransactionDialog: REMOVED the Description input; added a Receipt image upload section with: dashed drop-zone when empty (→ file picker), full image preview with Replace/Remove overlay buttons when attached; auto-saves imageData via PUT on upload and on remove
+- IncomeCard: shows the receipt image thumbnail (aspect-4/3) at the top when present, with a small Receipt badge; card title now shows category (capitalized) instead of description
+- Expense list items: show a small Receipt badge on the category icon when an image is attached; title shows category (capitalized)
+- Delete confirmation: references category instead of description
+- Removed unused `descriptionRef`
+- Fixed a Prisma client staleness issue: cleared .next cache + regenerated Prisma client so the `imageData` column is recognized
+- Verified via Agent Browser: inline entry shows only Account/Category/Amount/Date/Image/Add (no description); added ₹250 expense → total updated ₹22,718→₹22,968 (saved successfully); income dialog opens with Amount + Receipt image upload + Date (no description field); cleaned up test transactions
+- `bun run lint` clean
+
+Stage Summary:
+- Finance entry simplified to: Income/Expense toggle, Account, Category, Amount, Date, Image upload (receipt) — description field removed
+- Receipt images can be attached inline and in the edit dialog, with thumbnail previews in income cards + expense list
+- Backend stores imageData as base64 data URL in the Transaction model

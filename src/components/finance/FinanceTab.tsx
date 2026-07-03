@@ -17,6 +17,8 @@ import {
   Banknote,
   Smartphone,
   MoreHorizontal,
+  ImagePlus,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,7 @@ import {
   api,
   formatCurrency,
   formatDate,
+  readFileAsDataURL,
   sortItems,
 } from "@/lib/api";
 import type { Transaction, TransactionType, SortKey } from "@/lib/types";
@@ -81,6 +84,7 @@ interface InlineEntry {
   amount: string; // keep as string for natural input
   description: string;
   category: string;
+  imageData: string | null;
   date: string; // YYYY-MM-DD
 }
 
@@ -104,12 +108,13 @@ export default function FinanceTab() {
     amount: "",
     description: "",
     category: "Food",
+    imageData: null,
     date: todayDateInput(),
   });
   const [inlineSaving, setInlineSaving] = React.useState(false);
   const [inlineFlash, setInlineFlash] = React.useState(false);
   const amountRef = React.useRef<HTMLInputElement>(null);
-  const descriptionRef = React.useRef<HTMLInputElement>(null);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
 
   // Income section state
   const [accountTab, setAccountTab] = React.useState<string>("All");
@@ -174,7 +179,6 @@ export default function FinanceTab() {
     if (inlineSaving) return;
     const amountNum = parseFloat(entry.amount);
     if (!Number.isFinite(amountNum) || amountNum <= 0) return;
-    if (!entry.description.trim()) return;
 
     setInlineSaving(true);
     try {
@@ -186,6 +190,7 @@ export default function FinanceTab() {
           amount: amountNum,
           description: entry.description.trim(),
           category: entry.category,
+          imageData: entry.imageData,
           date: fromDateInput(entry.date),
         }),
       });
@@ -203,12 +208,12 @@ export default function FinanceTab() {
           amountNum
         )} added`,
       });
-      // Clear amount + description; keep sticky defaults for fast re-entry.
-      setEntry((prev) => ({ ...prev, amount: "", description: "" }));
+      // Clear amount + image; keep sticky defaults for fast re-entry.
+      setEntry((prev) => ({ ...prev, amount: "", imageData: null }));
       setInlineFlash(true);
       window.setTimeout(() => setInlineFlash(false), 1200);
-      // Refocus description for rapid entry.
-      window.setTimeout(() => descriptionRef.current?.focus(), 0);
+      // Refocus amount for rapid entry.
+      window.setTimeout(() => amountRef.current?.focus(), 0);
     } catch (e) {
       toast({
         title: "Could not save",
@@ -226,17 +231,30 @@ export default function FinanceTab() {
     }
   };
 
-  // Blur-of-amount/description auto-save (only when row is complete).
+  // Blur-of-amount auto-save (only when amount is valid).
   const handleBlurSave = () => {
     const amountNum = parseFloat(entry.amount);
     if (
       !inlineSaving &&
       Number.isFinite(amountNum) &&
-      amountNum > 0 &&
-      entry.description.trim()
+      amountNum > 0
     ) {
       void saveEntry();
     }
+  };
+
+  // Image upload handler for inline entry
+  const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) {
+      try {
+        const d = await readFileAsDataURL(f);
+        setEntry((prev) => ({ ...prev, imageData: d }));
+      } catch {
+        toast({ title: "Could not read image", variant: "destructive" });
+      }
+    }
+    e.target.value = "";
   };
 
   // ----- Dialog handlers -----
@@ -346,40 +364,6 @@ export default function FinanceTab() {
               </SelectContent>
             </Select>
 
-            {/* Amount */}
-            <Input
-              ref={amountRef}
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="0.01"
-              placeholder="Amount"
-              value={entry.amount}
-              onChange={(e) =>
-                setEntry((prev) => ({ ...prev, amount: e.target.value }))
-              }
-              onKeyDown={handleKeyDown}
-              onBlur={handleBlurSave}
-              className={cn(
-                "h-9 w-full font-semibold sm:w-32",
-                isIncomeEntry ? "text-emerald-700" : "text-rose-700"
-              )}
-            />
-
-            {/* Description */}
-            <Input
-              ref={descriptionRef}
-              type="text"
-              placeholder="Description (press Enter to save)"
-              value={entry.description}
-              onChange={(e) =>
-                setEntry((prev) => ({ ...prev, description: e.target.value }))
-              }
-              onKeyDown={handleKeyDown}
-              onBlur={handleBlurSave}
-              className="h-9 w-full sm:min-w-[12rem] sm:flex-1"
-            />
-
             {/* Category */}
             <Select
               value={entry.category}
@@ -400,6 +384,26 @@ export default function FinanceTab() {
               </SelectContent>
             </Select>
 
+            {/* Amount */}
+            <Input
+              ref={amountRef}
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              placeholder="Amount"
+              value={entry.amount}
+              onChange={(e) =>
+                setEntry((prev) => ({ ...prev, amount: e.target.value }))
+              }
+              onKeyDown={handleKeyDown}
+              onBlur={handleBlurSave}
+              className={cn(
+                "h-9 w-full font-semibold sm:w-32",
+                isIncomeEntry ? "text-emerald-700" : "text-rose-700"
+              )}
+            />
+
             {/* Date */}
             <Input
               type="date"
@@ -410,6 +414,54 @@ export default function FinanceTab() {
               onKeyDown={handleKeyDown}
               className="h-9 w-full sm:w-40"
             />
+
+            {/* Image upload (receipt/bill) */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImagePick}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => imageInputRef.current?.click()}
+              className={cn(
+                "h-9 gap-1.5",
+                entry.imageData
+                  ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  : ""
+              )}
+              title="Attach receipt image"
+            >
+              {entry.imageData ? (
+                <img
+                  src={entry.imageData}
+                  alt=""
+                  className="h-5 w-5 rounded object-cover"
+                />
+              ) : (
+                <ImagePlus className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">
+                {entry.imageData ? "Added" : "Image"}
+              </span>
+              {entry.imageData && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEntry((prev) => ({ ...prev, imageData: null }));
+                  }}
+                  className="ml-0.5 grid h-4 w-4 place-items-center rounded-full bg-emerald-200 text-emerald-800 hover:bg-emerald-300 dark:bg-emerald-800 dark:text-emerald-100"
+                  aria-label="Remove image"
+                >
+                  ×
+                </button>
+              )}
+            </Button>
 
             {/* Add button */}
             <Button
@@ -555,12 +607,17 @@ export default function FinanceTab() {
                     className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent/50 sm:px-4"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300">
+                      <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300">
                         <CategoryIcon category={t.category} className="h-4 w-4" />
+                        {t.imageData && (
+                          <span className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-background text-rose-500 shadow-sm">
+                            <Receipt className="h-2.5 w-2.5" />
+                          </span>
+                        )}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {t.description || t.category}
+                        <p className="truncate text-sm font-medium capitalize">
+                          {t.category}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
                           <span className="capitalize">{t.category}</span>
@@ -705,30 +762,46 @@ function IncomeCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col gap-2 rounded-xl border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+      className="group flex flex-col gap-2 overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
     >
-      <div className="flex items-center justify-between gap-2">
-        <Badge
-          variant="outline"
-          className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
-        >
-          <AccountIcon account={transaction.account} className="h-3 w-3" />
-          {transaction.account}
-        </Badge>
-        <span className="text-base font-bold text-emerald-600">
-          +{formatCurrency(transaction.amount)}
-        </span>
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">
-          {transaction.description || transaction.category}
-        </p>
-        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-          <CategoryIcon category={transaction.category} className="h-3 w-3" />
-          <span className="capitalize">{transaction.category}</span>
-          <span className="mx-0.5">·</span>
-          {formatDate(transaction.date)}
-        </p>
+      {/* Receipt image (if any) */}
+      {transaction.imageData && (
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+          <img
+            src={transaction.imageData}
+            alt="Receipt"
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-background/90 text-emerald-600 shadow-sm">
+            <Receipt className="h-3 w-3" />
+          </span>
+        </div>
+      )}
+      <div className="flex flex-col gap-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <Badge
+            variant="outline"
+            className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+          >
+            <AccountIcon account={transaction.account} className="h-3 w-3" />
+            {transaction.account}
+          </Badge>
+          <span className="text-base font-bold text-emerald-600">
+            +{formatCurrency(transaction.amount)}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium capitalize">
+            {transaction.category}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+            <CategoryIcon category={transaction.category} className="h-3 w-3" />
+            <span className="capitalize">{transaction.category}</span>
+            <span className="mx-0.5">·</span>
+            {formatDate(transaction.date)}
+          </p>
+        </div>
       </div>
     </button>
   );

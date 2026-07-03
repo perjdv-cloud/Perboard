@@ -1,0 +1,772 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import {
+     5→  TrendingUp,
+     6→  TrendingDown,
+     7→  Wallet,
+     8→  Plus,
+     9→  Loader2,
+    10→  Check,
+    11→  Utensils,
+    12→  Home as HomeIcon,
+    13→  ShoppingBag,
+    14→  Car,
+    15→  Briefcase,
+    16→  CreditCard,
+    17→  Banknote,
+    18→  Smartphone,
+    19→  MoreHorizontal,
+    20→} from "lucide-react";
+    21→import { Button } from "@/components/ui/button";
+    22→import { Input } from "@/components/ui/input";
+    23→import { Badge } from "@/components/ui/badge";
+    24→import { Skeleton } from "@/components/ui/skeleton";
+    25→import {
+    26→  Select,
+    27→  SelectContent,
+    28→  SelectItem,
+    29→  SelectTrigger,
+    30→  SelectValue,
+    31→} from "@/components/ui/select";
+    32→import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+    33→import { Card, CardContent } from "@/components/ui/card";
+    34→import { cn } from "@/lib/utils";
+    35→import {
+    36→  api,
+    37→  formatCurrency,
+    38→  formatDate,
+    39→  sortItems,
+    40→} from "@/lib/api";
+    41→import type { Transaction, TransactionType, SortKey } from "@/lib/types";
+    42→import { toast } from "@/hooks/use-toast";
+    43→import TransactionDialog, {
+    44→  ACCOUNTS,
+    45→  CATEGORIES,
+    46→  toDateInput,
+    47→  fromDateInput,
+    48→} from "./TransactionDialog";
+    49→
+    50→const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    51→  Salary: Briefcase,
+    52→  Food: Utensils,
+    53→  Rent: HomeIcon,
+    54→  Shopping: ShoppingBag,
+    55→  Transport: Car,
+    56→  General: CreditCard,
+    57→  Other: MoreHorizontal,
+    58→};
+    59→
+    60→const ACCOUNT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    61→  Cash: Banknote,
+    62→  Bank: Briefcase,
+    63→  Card: CreditCard,
+    64→  UPI: Smartphone,
+    65→  Other: MoreHorizontal,
+    66→};
+    67→
+    68→function CategoryIcon({ category, className }: { category: string; className?: string }) {
+    69→  const Comp = CATEGORY_ICONS[category] || MoreHorizontal;
+    70→  return <Comp className={className} />;
+    71→}
+    72→
+    73→function AccountIcon({ account, className }: { account: string; className?: string }) {
+    74→  const Comp = ACCOUNT_ICONS[account] || MoreHorizontal;
+    75→  return <Comp className={className} />;
+    76→}
+    77→
+    78→interface InlineEntry {
+    79→  type: TransactionType;
+    80→  account: string;
+    81→  amount: string; // keep as string for natural input
+    82→  description: string;
+    83→  category: string;
+    84→  date: string; // YYYY-MM-DD
+    85→}
+    86→
+    87→function todayDateInput(): string {
+    88→  const d = new Date();
+    89→  const yyyy = d.getFullYear();
+    90→  const mm = String(d.getMonth() + 1).padStart(2, "0");
+    91→  const dd = String(d.getDate()).padStart(2, "0");
+    92→  return `${yyyy}-${mm}-${dd}`;
+    93→}
+    94→
+    95→export default function FinanceTab() {
+    96→  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+    97→  const [loading, setLoading] = React.useState(true);
+    98→  const [error, setError] = React.useState<string | null>(null);
+    99→
+   100→  // Inline entry state — type/account/category/date are "sticky" defaults.
+   101→  const [entry, setEntry] = React.useState<InlineEntry>({
+   102→    type: "expense",
+   103→    account: "Cash",
+   104→    amount: "",
+   105→    description: "",
+   106→    category: "Food",
+   107→    date: todayDateInput(),
+   108→  });
+   109→  const [inlineSaving, setInlineSaving] = React.useState(false);
+   110→  const [inlineFlash, setInlineFlash] = React.useState(false);
+   111→  const amountRef = React.useRef<HTMLInputElement>(null);
+   112→  const descriptionRef = React.useRef<HTMLInputElement>(null);
+   113→
+   114→  // Income section state
+   115→  const [accountTab, setAccountTab] = React.useState<string>("All");
+   116→  const [sort, setSort] = React.useState<SortKey>("recent");
+   117→
+   118→  // Dialog state
+   119→  const [dialogOpen, setDialogOpen] = React.useState(false);
+   120→  const [selected, setSelected] = React.useState<Transaction | null>(null);
+   121→
+   122→  // ----- Fetch -----
+   123→  const fetchAll = React.useCallback(async () => {
+   124→    setLoading(true);
+   125→    setError(null);
+   126→    try {
+   127→      const items = await api<Transaction[]>("/api/transactions");
+   128→      setTransactions(items);
+   129→    } catch (e) {
+   130→      setError((e as Error).message);
+   131→    } finally {
+   132→      setLoading(false);
+   133→    }
+   134→  }, []);
+   135→
+   136→  React.useEffect(() => {
+   137→    void fetchAll();
+   138→  }, [fetchAll]);
+   139→
+   140→  // ----- Derived -----
+   141→  const totalIncome = transactions
+   142→    .filter((t) => t.type === "income")
+   143→    .reduce((s, t) => s + t.amount, 0);
+   144→  const totalExpense = transactions
+   145→    .filter((t) => t.type === "expense")
+   146→    .reduce((s, t) => s + t.amount, 0);
+   147→  const net = totalIncome - totalExpense;
+   148→
+   149→  const expenses = transactions.filter((t) => t.type === "expense");
+   150→  const incomes = transactions.filter((t) => t.type === "income");
+   151→
+   152→  const incomeAccounts = React.useMemo(
+   153→    () => Array.from(new Set(incomes.map((t) => t.account))),
+   154→    [incomes]
+   155→  );
+   156→
+   157→  // If the selected account tab no longer has any income entries, fall back to All.
+   158→  React.useEffect(() => {
+   159→    if (accountTab !== "All" && !incomeAccounts.includes(accountTab)) {
+   160→      setAccountTab("All");
+   161→    }
+   162→  }, [incomeAccounts, accountTab]);
+   163→
+   164→  const displayedIncomes = React.useMemo(() => {
+   165→    const filtered =
+   166→      accountTab === "All"
+   167→        ? incomes
+   168→        : incomes.filter((t) => t.account === accountTab);
+   169→    return sortItems(filtered, sort);
+   170→  }, [incomes, accountTab, sort]);
+   171→
+   172→  // ----- Inline save -----
+   173→  const saveEntry = React.useCallback(async () => {
+   174→    if (inlineSaving) return;
+   175→    const amountNum = parseFloat(entry.amount);
+   176→    if (!Number.isFinite(amountNum) || amountNum <= 0) return;
+   177→    if (!entry.description.trim()) return;
+   178→
+   179→    setInlineSaving(true);
+   180→    try {
+   181→      const created = await api<Transaction>("/api/transactions", {
+   182→        method: "POST",
+   183→        body: JSON.stringify({
+   184→          type: entry.type,
+   185→          account: entry.account,
+   186→          amount: amountNum,
+   187→          description: entry.description.trim(),
+   188→          category: entry.category,
+   189→          date: fromDateInput(entry.date),
+   190→        }),
+   191→      });
+   192→      setTransactions((prev) => {
+   193→        // insert at the right position to keep date-desc order
+   194→        const next = [created, ...prev];
+   195→        next.sort(
+   196→          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+   197→        );
+   198→        return next;
+   199→      });
+   200→      toast({
+   201→        title: "Saved",
+   202→        description: `${entry.type === "income" ? "Income" : "Expense"} of ${formatCurrency(
+   203→          amountNum
+   204→        )} added`,
+   205→      });
+   206→      // Clear amount + description; keep sticky defaults for fast re-entry.
+   207→      setEntry((prev) => ({ ...prev, amount: "", description: "" }));
+   208→      setInlineFlash(true);
+   209→      window.setTimeout(() => setInlineFlash(false), 1200);
+   210→      // Refocus description for rapid entry.
+   211→      window.setTimeout(() => descriptionRef.current?.focus(), 0);
+   212→    } catch (e) {
+   213→      toast({
+   214→        title: "Could not save",
+   215→        description: (e as Error).message,
+   216→      });
+   217→    } finally {
+   218→      setInlineSaving(false);
+   219→    }
+   220→  }, [entry, inlineSaving]);
+   221→
+   222→  const handleKeyDown = (e: React.KeyboardEvent) => {
+   223→    if (e.key === "Enter") {
+   224→      e.preventDefault();
+   225→      void saveEntry();
+   226→    }
+   227→  };
+   228→
+   229→  // Blur-of-amount/description auto-save (only when row is complete).
+   230→  const handleBlurSave = () => {
+   231→    const amountNum = parseFloat(entry.amount);
+   232→    if (
+   233→      !inlineSaving &&
+   234→      Number.isFinite(amountNum) &&
+   235→      amountNum > 0 &&
+   236→      entry.description.trim()
+   237→    ) {
+   238→      void saveEntry();
+   239→    }
+   240→  };
+   241→
+   242→  // ----- Dialog handlers -----
+   243→  const openTransaction = (t: Transaction) => {
+   244→    setSelected(t);
+   245→    setDialogOpen(true);
+   246→  };
+   247→
+   248→  const handleSaved = (updated: Transaction) => {
+   249→    setTransactions((prev) => {
+   250→      const next = prev.map((t) => (t.id === updated.id ? updated : t));
+   251→      next.sort(
+   252→        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+   253→      );
+   254→      return next;
+   255→    });
+   256→    setSelected(updated);
+   257→  };
+   258→
+   259→  const handleDeleted = (id: string) => {
+   260→    setTransactions((prev) => prev.filter((t) => t.id !== id));
+   261→    setSelected(null);
+   262→  };
+   263→
+   264→  // ----- Render helpers -----
+   265→  const isIncomeEntry = entry.type === "income";
+   266→
+   267→  return (
+   268→    <div className="space-y-5">
+   269→      {/* ---------- Summary cards ---------- */}
+   270→      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   271→        <SummaryCard
+   272→          label="Total Income"
+   273→          value={totalIncome}
+   274→          icon={<TrendingUp className="h-4 w-4" />}
+   275→          tone="emerald"
+   276→          loading={loading}
+   277→        />
+   278→        <SummaryCard
+   279→          label="Total Expense"
+   280→          value={totalExpense}
+   281→          icon={<TrendingDown className="h-4 w-4" />}
+   282→          tone="rose"
+   283→          loading={loading}
+   284→        />
+   285→        <SummaryCard
+   286→          label="Net Balance"
+   287→          value={net}
+   288→          icon={<Wallet className="h-4 w-4" />}
+   289→          tone={net >= 0 ? "emerald" : "rose"}
+   290→          loading={loading}
+   291→          prefix={net >= 0 ? "" : "−"}
+   292→        />
+   293→      </section>
+   294→
+   295→      {/* ---------- Inline entry ---------- */}
+   296→      <Card className="gap-0 py-0">
+   297→        <CardContent className="px-3 py-3 sm:px-4 sm:py-4">
+   298→          <div className="flex flex-wrap items-center gap-2">
+   299→            {/* Type toggle */}
+   300→            <ToggleGroup
+   301→              type="single"
+   302→              value={entry.type}
+   303→              onValueChange={(v) => {
+   304→                if (v === "income" || v === "expense") {
+   305→                  setEntry((prev) => ({ ...prev, type: v as TransactionType }));
+   306→                }
+   307→              }}
+   308→              className="w-full sm:w-auto"
+   309→            >
+   310→              <ToggleGroupItem
+   311→                value="income"
+   312→                aria-label="Income"
+   313→                className="h-9 flex-1 data-[state=on]:bg-emerald-500 data-[state=on]:text-white data-[state=on]:hover:bg-emerald-500/90 sm:flex-none"
+   314→              >
+   315→                <TrendingUp className="h-4 w-4" /> Income
+   316→              </ToggleGroupItem>
+   317→              <ToggleGroupItem
+   318→                value="expense"
+   319→                aria-label="Expense"
+   320→                className="h-9 flex-1 data-[state=on]:bg-rose-500 data-[state=on]:text-white data-[state=on]:hover:bg-rose-500/90 sm:flex-none"
+   321→              >
+   322→                <TrendingDown className="h-4 w-4" /> Expense
+   323→              </ToggleGroupItem>
+   324→            </ToggleGroup>
+   325→
+   326→            {/* Account */}
+   327→            <Select
+   328→              value={entry.account}
+   329→              onValueChange={(v) =>
+   330→                setEntry((prev) => ({ ...prev, account: v }))
+   331→              }
+   332→            >
+   333→              <SelectTrigger
+   334→                size="sm"
+   335→                className="h-9 w-full min-w-[7rem] sm:w-32"
+   336→              >
+   337→                <SelectValue placeholder="Account" />
+   338→              </SelectTrigger>
+   339→              <SelectContent>
+   340→                {ACCOUNTS.map((a) => (
+   341→                  <SelectItem key={a} value={a}>
+   342→                    <AccountIcon account={a} className="h-4 w-4" />
+   343→                    {a}
+   344→                  </SelectItem>
+   345→                ))}
+   346→              </SelectContent>
+   347→            </Select>
+   348→
+   349→            {/* Amount */}
+   350→            <Input
+   351→              ref={amountRef}
+   352→              type="number"
+   353→              inputMode="decimal"
+   354→              min={0}
+   355→              step="0.01"
+   356→              placeholder="Amount"
+   357→              value={entry.amount}
+   358→              onChange={(e) =>
+   359→                setEntry((prev) => ({ ...prev, amount: e.target.value }))
+   360→              }
+   361→              onKeyDown={handleKeyDown}
+   362→              onBlur={handleBlurSave}
+   363→              className={cn(
+   364→                "h-9 w-full font-semibold sm:w-32",
+   365→                isIncomeEntry ? "text-emerald-700" : "text-rose-700"
+   366→              )}
+   367→            />
+   368→
+   369→            {/* Description */}
+   370→            <Input
+   371→              ref={descriptionRef}
+   372→              type="text"
+   373→              placeholder="Description (press Enter to save)"
+   374→              value={entry.description}
+   375→              onChange={(e) =>
+   376→                setEntry((prev) => ({ ...prev, description: e.target.value }))
+   377→              }
+   378→              onKeyDown={handleKeyDown}
+   379→              onBlur={handleBlurSave}
+   380→              className="h-9 w-full sm:min-w-[12rem] sm:flex-1"
+   381→            />
+   382→
+   383→            {/* Category */}
+   384→            <Select
+   385→              value={entry.category}
+   386→              onValueChange={(v) =>
+   387→                setEntry((prev) => ({ ...prev, category: v }))
+   388→              }
+   389→            >
+   390→              <SelectTrigger size="sm" className="h-9 w-full sm:w-36">
+   391→                <SelectValue placeholder="Category" />
+   392→              </SelectTrigger>
+   393→              <SelectContent>
+   394→                {CATEGORIES.map((c) => (
+   395→                  <SelectItem key={c} value={c}>
+   396→                    <CategoryIcon category={c} className="h-4 w-4" />
+   397→                    {c}
+   398→                  </SelectItem>
+   399→                ))}
+   400→              </SelectContent>
+   401→            </Select>
+   402→
+   403→            {/* Date */}
+   404→            <Input
+   405→              type="date"
+   406→              value={entry.date}
+   407→              onChange={(e) =>
+   408→                setEntry((prev) => ({ ...prev, date: e.target.value }))
+   409→              }
+   410→              onKeyDown={handleKeyDown}
+   411→              className="h-9 w-full sm:w-40"
+   412→            />
+   413→
+   414→            {/* Add button */}
+   415→            <Button
+   416→              type="button"
+   417→              onClick={() => void saveEntry()}
+   418→              disabled={inlineSaving}
+   419→              className={cn(
+   420→                "h-9 w-full gap-1.5 sm:w-auto",
+   421→                isIncomeEntry
+   422→                  ? "bg-emerald-600 text-white hover:bg-emerald-600/90"
+   423→                  : "bg-rose-600 text-white hover:bg-rose-600/90"
+   424→              )}
+   425→            >
+   426→              {inlineSaving ? (
+   427→                <Loader2 className="h-4 w-4 animate-spin" />
+   428→              ) : inlineFlash ? (
+   429→                <Check className="h-4 w-4" />
+   430→              ) : (
+   431→                <Plus className="h-4 w-4" />
+   432→              )}
+   433→              {inlineSaving ? "Saving" : inlineFlash ? "Saved" : "Add"}
+   434→            </Button>
+   435→          </div>
+   436→          {error && (
+   437→            <p className="mt-2 text-xs text-rose-600">Failed to load: {error}</p>
+   438→          )}
+   439→        </CardContent>
+   440→      </Card>
+   441→
+   442→      {/* ---------- Income section (with account tabs + grid) ---------- */}
+   443→      <section className="space-y-3">
+   444→        <div className="flex flex-wrap items-center justify-between gap-2">
+   445→          <div className="flex items-center gap-2">
+   446→            <TrendingUp className="h-4 w-4 text-emerald-600" />
+   447→            <h2 className="text-sm font-semibold">Income</h2>
+   448→            <Badge variant="secondary" className="font-medium">
+   449→              {incomes.length}
+   450→            </Badge>
+   451→          </div>
+   452→          <div className="flex items-center gap-2">
+   453→            <span className="hidden text-xs text-muted-foreground sm:inline">
+   454→              Sort by
+   455→            </span>
+   456→            <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+   457→              <SelectTrigger size="sm" className="h-8 w-36">
+   458→                <SelectValue />
+   459→              </SelectTrigger>
+   460→              <SelectContent>
+   461→                <SelectItem value="recent">Recent</SelectItem>
+   462→                <SelectItem value="date">Date created</SelectItem>
+   463→                <SelectItem value="month">Month</SelectItem>
+   464→                <SelectItem value="type">Type</SelectItem>
+   465→              </SelectContent>
+   466→            </Select>
+   467→          </div>
+   468→        </div>
+   469→
+   470→        {/* Account tabs (swipable, hidden scrollbar, scroll-snap) */}
+   471→        <div
+   472→          className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+   473→          role="tablist"
+   474→          aria-label="Income accounts"
+   475→        >
+   476→          <AccountTab
+   477→            label="All"
+   478→            active={accountTab === "All"}
+   479→            onClick={() => setAccountTab("All")}
+   480→            count={incomes.length}
+   481→          />
+   482→          {incomeAccounts.map((a) => (
+   483→            <AccountTab
+   484→              key={a}
+   485→              label={a}
+   486→              active={accountTab === a}
+   487→              onClick={() => setAccountTab(a)}
+   488→              count={incomes.filter((t) => t.account === a).length}
+   489→              icon={<AccountIcon account={a} className="h-3.5 w-3.5" />}
+   490→            />
+   491→          ))}
+   492→        </div>
+   493→
+   494→        {/* Income grid */}
+   495→        {loading ? (
+   496→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+   497→            {Array.from({ length: 8 }).map((_, i) => (
+   498→              <Skeleton key={i} className="h-24 rounded-xl" />
+   499→            ))}
+   500→          </div>
+   501→        ) : displayedIncomes.length === 0 ? (
+   502→          <EmptyState
+   503→            icon={<TrendingUp className="h-6 w-6" />}
+   504→            title="No income yet"
+   505→            description="Add your first income using the row above. Income entries appear here grouped by account."
+   506→            tone="emerald"
+   507→          />
+   508→        ) : (
+   509→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+   510→            {displayedIncomes.map((t) => (
+   511→              <IncomeCard
+   512→                key={t.id}
+   513→                transaction={t}
+   514→                onClick={() => openTransaction(t)}
+   515→              />
+   516→            ))}
+   517→          </div>
+   518→        )}
+   519→      </section>
+   520→
+   521→      {/* ---------- Expense section ---------- */}
+   522→      <section className="space-y-3">
+   523→        <div className="flex items-center gap-2">
+   524→          <TrendingDown className="h-4 w-4 text-rose-600" />
+   525→          <h2 className="text-sm font-semibold">Recent Expenses</h2>
+   526→          <Badge variant="secondary" className="font-medium">
+   527→            {expenses.length}
+   528→          </Badge>
+   529→        </div>
+   530→
+   531→        {loading ? (
+   532→          <div className="space-y-2">
+   533→            {Array.from({ length: 4 }).map((_, i) => (
+   534→              <Skeleton key={i} className="h-14 rounded-lg" />
+   535→            ))}
+   536→          </div>
+   537→        ) : expenses.length === 0 ? (
+   538→          <EmptyState
+   539→            icon={<TrendingDown className="h-6 w-6" />}
+   540→            title="No expenses recorded"
+   541→            description="Track where your money goes — add an expense using the row above."
+   542→            tone="rose"
+   543→          />
+   544→        ) : (
+   545→          <div className="overflow-hidden rounded-xl border bg-card">
+   546→            <ul
+   547→              role="list"
+   548→              className="max-h-96 divide-y divide-border overflow-y-auto"
+   549→            >
+   550→              {expenses.slice(0, 30).map((t) => (
+   551→                <li key={t.id}>
+   552→                  <button
+   553→                    type="button"
+   554→                    onClick={() => openTransaction(t)}
+   555→                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent/50 sm:px-4"
+   556→                  >
+   557→                    <div className="flex min-w-0 items-center gap-3">
+   558→                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300">
+   559→                        <CategoryIcon category={t.category} className="h-4 w-4" />
+   560→                      </span>
+   561→                      <div className="min-w-0">
+   562→                        <p className="truncate text-sm font-medium">
+   563→                          {t.description || t.category}
+   564→                        </p>
+   565→                        <p className="truncate text-xs text-muted-foreground">
+   566→                          <span className="capitalize">{t.category}</span>
+   567→                          <span className="mx-1">·</span>
+   568→                          {formatDate(t.date)}
+   569→                        </p>
+   570→                      </div>
+   571→                    </div>
+   572→                    <div className="flex shrink-0 items-center gap-2">
+   573→                      <Badge variant="outline" className="hidden capitalize sm:inline-flex">
+   574→                        {t.account}
+   575→                      </Badge>
+   576→                      <span className="text-sm font-semibold text-rose-600">
+   577→                        −{formatCurrency(t.amount)}
+   578→                      </span>
+   579→                    </div>
+   580→                  </button>
+   581→                </li>
+   582→              ))}
+   583→            </ul>
+   584→          </div>
+   585→        )}
+   586→      </section>
+   587→
+   588→      {/* ---------- Dialog ---------- */}
+   589→      <TransactionDialog
+   590→        transaction={selected}
+   591→        open={dialogOpen}
+   592→        onOpenChange={setDialogOpen}
+   593→        onSaved={handleSaved}
+   594→        onDeleted={handleDeleted}
+   595→      />
+   596→    </div>
+   597→  );
+   598→}
+   599→
+   600→/* ---------------- Sub-components ---------------- */
+   601→
+   602→function SummaryCard({
+   603→  label,
+   604→  value,
+   605→  icon,
+   606→  tone,
+   607→  loading,
+   608→  prefix = "",
+   609→}: {
+   610→  label: string;
+   611→  value: number;
+   612→  icon: React.ReactNode;
+   613→  tone: "emerald" | "rose";
+   614→  loading?: boolean;
+   615→  prefix?: string;
+   616→}) {
+   617→  const toneClasses =
+   618→    tone === "emerald"
+   619→      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+   620→      : "bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300";
+   621→  const iconBg =
+   622→    tone === "emerald"
+   623→      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"
+   624→      : "bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300";
+   625→  return (
+   626→    <div className="flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm">
+   627→      <span
+   628→        className={cn(
+   629→          "grid h-10 w-10 shrink-0 place-items-center rounded-lg",
+   630→          iconBg
+   631→        )}
+   632→      >
+   633→        {icon}
+   634→      </span>
+   635→      <div className="min-w-0">
+   636→        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+   637→        {loading ? (
+   638→          <Skeleton className="mt-1 h-6 w-24" />
+   639→        ) : (
+   640→          <p
+   641→            className={cn(
+   642→              "truncate text-xl font-bold tracking-tight",
+   643→              toneClasses
+   644→            )}
+   645→          >
+   646→            {prefix}
+   647→            {formatCurrency(value)}
+   648→          </p>
+   649→        )}
+   650→      </div>
+   651→    </div>
+   652→  );
+   653→}
+   654→
+   655→function AccountTab({
+   656→  label,
+   657→  active,
+   658→  onClick,
+   659→  count,
+   660→  icon,
+   661→}: {
+   662→  label: string;
+   663→  active: boolean;
+   664→  onClick: () => void;
+   665→  count: number;
+   666→  icon?: React.ReactNode;
+   667→}) {
+   668→  return (
+   669→    <button
+   670→      type="button"
+   671→      role="tab"
+   672→      aria-selected={active}
+   673→      onClick={onClick}
+   674→      className={cn(
+   675→        "flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
+   676→        active
+   677→          ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+   678→          : "border-border bg-background text-foreground hover:bg-accent"
+   679→      )}
+   680→    >
+   681→      {icon}
+   682→      {label}
+   683→      <span
+   684→        className={cn(
+   685→          "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+   686→          active
+   687→            ? "bg-white/20 text-white"
+   688→            : "bg-muted text-muted-foreground"
+   689→        )}
+   690→      >
+   691→        {count}
+   692→      </span>
+   693→    </button>
+   694→  );
+   695→}
+   696→
+   697→function IncomeCard({
+   698→  transaction,
+   699→  onClick,
+   700→}: {
+   701→  transaction: Transaction;
+   702→  onClick: () => void;
+   703→}) {
+   704→  return (
+   705→    <button
+   706→      type="button"
+   707→      onClick={onClick}
+   708→      className="group flex flex-col gap-2 rounded-xl border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+   709→    >
+   710→      <div className="flex items-center justify-between gap-2">
+   711→        <Badge
+   712→          variant="outline"
+   713→          className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+   714→        >
+   715→          <AccountIcon account={transaction.account} className="h-3 w-3" />
+   716→          {transaction.account}
+   717→        </Badge>
+   718→        <span className="text-base font-bold text-emerald-600">
+   719→          +{formatCurrency(transaction.amount)}
+   720→        </span>
+   721→      </div>
+   722→      <div className="min-w-0">
+   723→        <p className="truncate text-sm font-medium">
+   724→          {transaction.description || transaction.category}
+   725→        </p>
+   726→        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+   727→          <CategoryIcon category={transaction.category} className="h-3 w-3" />
+   728→          <span className="capitalize">{transaction.category}</span>
+   729→          <span className="mx-0.5">·</span>
+   730→          {formatDate(transaction.date)}
+   731→        </p>
+   732→      </div>
+   733→    </button>
+   734→  );
+   735→}
+   736→
+   737→function EmptyState({
+   738→  icon,
+   739→  title,
+   740→  description,
+   741→  tone,
+   742→}: {
+   743→  icon: React.ReactNode;
+   744→  title: string;
+   745→  description: string;
+   746→  tone: "emerald" | "rose";
+   747→}) {
+   748→  return (
+   749→    <div
+   750→      className={cn(
+   751→        "flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center",
+   752→        tone === "emerald"
+   753→          ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900 dark:bg-emerald-950/20"
+   754→          : "border-rose-200 bg-rose-50/40 dark:border-rose-900 dark:bg-rose-950/20"
+   755→      )}
+   756→    >
+   757→      <span
+   758→        className={cn(
+   759→          "grid h-11 w-11 place-items-center rounded-full",
+   760→          tone === "emerald"
+   761→            ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300"
+   762→            : "bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-300"
+   763→        )}
+   764→      >
+   765→        {icon}
+   766→      </span>
+   767→      <p className="text-sm font-medium">{title}</p>
+   768→      <p className="max-w-xs text-xs text-muted-foreground">{description}</p>
+   769→    </div>
+   770→  );
+   771→}
+   772→
