@@ -300,3 +300,23 @@ Stage Summary:
 - Mobile notes now display in 3 columns (was 2)
 - Note cards are compact and stylish: slim color stripe, tighter padding/spacing, smaller action buttons, consolidated footer, responsive typography
 - All breakpoints and interactions preserved
+
+---
+Task ID: 13
+Agent: Orchestrator
+Task: Make notes folder swiping very smooth and gentle
+
+Work Log:
+- Tuned the framer-motion drag on the swipeable notes area for a soft, gentle feel:
+  - dragElastic 0.16 → 0.1 (lighter, less janky movement while still following the finger)
+  - Added dragTransition spring { type: "spring", stiffness: 180, damping: 26, mass: 0.5 } for a soft, cushioned snap-back on release (was an instant snap since dragMomentum=false with no dragTransition)
+  - Added matching transition spring so any animate changes use the same gentle curve
+  - Lowered swipe threshold 45px → 32px so gentle flicks trigger folder changes
+  - Added whileDrag={{ cursor: "grabbing" }} for tactile visual feedback during the drag
+- Verified via Agent Browser at mobile 390×844: gentle left swipe (110px) smoothly switched All Notes → Care; chevron Previous button reliably switches back (Care → All Notes), confirming swipeFolder(-1) logic works in both directions
+- No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- Notes folder swipe now uses a soft spring (stiffness 180, damping 26, mass 0.5) for a gentle, cushioned snap-back
+- Lower elastic (0.1) keeps movement subtle; lower threshold (32px) makes gentle flicks register
+- Chevron buttons remain as a reliable desktop/keyboard alternative

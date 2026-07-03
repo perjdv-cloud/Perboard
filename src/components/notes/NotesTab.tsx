@@ -352,17 +352,20 @@ export default function NotesTab() {
         onUpdated={handleSaved}
       />
 
-      {/* Swipeable notes area — drag left/right to switch folders */}
+      {/* Swipeable notes area — drag left/right to switch folders (soft spring) */}
       <motion.div
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.16}
+        dragElastic={0.1}
         dragMomentum={false}
+        dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+        transition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
         onDragEnd={(_, info) => {
-          const threshold = 45;
+          const threshold = 32;
           if (info.offset.x < -threshold) swipeFolder(1);
           else if (info.offset.x > threshold) swipeFolder(-1);
         }}
+        whileDrag={{ cursor: "grabbing" }}
         className="select-none"
         style={{ cursor: "grab" }}
       >
