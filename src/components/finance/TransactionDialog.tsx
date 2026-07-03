@@ -19,13 +19,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,19 +27,10 @@ import { Badge } from "@/components/ui/badge";
 import { Trash2, Loader2, Check, TrendingDown, TrendingUp, ImagePlus, Receipt } from "lucide-react";
 import { api, formatCurrency, formatDateTime, readFileAsDataURL } from "@/lib/api";
 import type { Transaction, TransactionType } from "@/lib/types";
+import { useAccounts, useCategories } from "@/lib/pickers";
+import ManageableSelect from "./ManageableSelect";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-export const ACCOUNTS = ["Cash", "Bank", "Card", "UPI", "Other"];
-export const CATEGORIES = [
-  "Salary",
-  "Food",
-  "Rent",
-  "Shopping",
-  "Transport",
-  "General",
-  "Other",
-];
 
 /** Convert an ISO date string to the YYYY-MM-DD value used by <input type="date">. */
 export function toDateInput(iso: string): string {
@@ -85,8 +69,11 @@ export default function TransactionDialog({
   const [saving, setSaving] = React.useState(false);
   const [savedFlash, setSavedFlash] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
-  const [imageBusy, setImageBusy] = React.useState(false);
-  const imageInputRef = React.useRef<HTMLInputElement>(null);
+  const [imageBusy, setImageBusy] = React.useState<1 | 2 | null>(null);
+  const image1InputRef = React.useRef<HTMLInputElement>(null);
+  const image2InputRef = React.useRef<HTMLInputElement>(null);
+  const { accounts, addAccount, removeAccount } = useAccounts();
+  const { categories, addCategory, removeCategory } = useCategories();
 
   // Sync local form when the incoming transaction changes.
   React.useEffect(() => {
@@ -156,28 +143,31 @@ export default function TransactionDialog({
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
-  // Image upload / clear
-  const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image upload / clear (supports 2 slots: slot 1 = imageData, slot 2 = imageData2)
+  const handleImagePick = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slot: 1 | 2
+  ) => {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
-    setImageBusy(true);
+    setImageBusy(slot);
     try {
       const d = await readFileAsDataURL(f);
-      const next = { ...form, imageData: d };
-      setForm(next);
-      await persist({ imageData: d });
+      const key = slot === 1 ? "imageData" : "imageData2";
+      setForm((prev) => (prev ? { ...prev, [key]: d } : prev));
+      await persist({ [key]: d });
     } catch {
       toast({ title: "Could not read image", variant: "destructive" });
     } finally {
-      setImageBusy(false);
+      setImageBusy(null);
     }
   };
 
-  const handleRemoveImage = async () => {
-    const next = { ...form, imageData: null };
-    setForm(next);
-    await persist({ imageData: null });
+  const handleRemoveImage = async (slot: 1 | 2) => {
+    const key = slot === 1 ? "imageData" : "imageData2";
+    setForm((prev) => (prev ? { ...prev, [key]: null } : prev));
+    await persist({ [key]: null });
   };
 
   return (
@@ -258,115 +248,72 @@ export default function TransactionDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Account</Label>
-              <Select
+              <ManageableSelect
                 value={form.account}
                 onValueChange={(v) => {
-                  const next = { ...form, account: v };
-                  setForm(next);
+                  setForm({ ...form, account: v });
                   void persist({ account: v });
                 }}
-              >
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder="Account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ACCOUNTS.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                items={accounts}
+                onAdd={addAccount}
+                onDelete={removeAccount}
+                placeholder="Account"
+              />
             </div>
           </div>
 
-          {/* Receipt image upload */}
+          {/* Receipt images (2 slots) */}
           <div className="space-y-1.5">
-            <Label>Receipt image</Label>
+            <Label>Receipt images (up to 2)</Label>
             <input
-              ref={imageInputRef}
+              ref={image1InputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleImagePick}
+              onChange={(e) => void handleImagePick(e, 1)}
             />
-            {form.imageData ? (
-              <div className="group relative overflow-hidden rounded-lg border">
-                <img
-                  src={form.imageData}
-                  alt="Receipt"
-                  className="max-h-56 w-full object-cover"
-                />
-                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent p-2">
-                  <span className="flex items-center gap-1 text-xs font-medium text-white">
-                    <Receipt className="h-3.5 w-3.5" /> Receipt attached
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="h-7 gap-1 px-2 text-xs"
-                      disabled={imageBusy}
-                      onClick={() => imageInputRef.current?.click()}
-                    >
-                      {imageBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
-                      Replace
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      className="h-7 gap-1 px-2 text-xs"
-                      disabled={imageBusy}
-                      onClick={handleRemoveImage}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={imageBusy}
-                className="flex h-24 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground transition hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-700 disabled:opacity-60"
-              >
-                {imageBusy ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <ImagePlus className="h-5 w-5" />
-                )}
-                <span>{imageBusy ? "Uploading…" : "Add receipt image"}</span>
-              </button>
-            )}
+            <input
+              ref={image2InputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => void handleImagePick(e, 2)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              {/* Slot 1 */}
+              <ImageSlot
+                src={form.imageData}
+                busy={imageBusy === 1}
+                onPick={() => image1InputRef.current?.click()}
+                onRemove={() => void handleRemoveImage(1)}
+                label="Image 1"
+              />
+              {/* Slot 2 */}
+              <ImageSlot
+                src={form.imageData2}
+                busy={imageBusy === 2}
+                onPick={() => image2InputRef.current?.click()}
+                onRemove={() => void handleRemoveImage(2)}
+                label="Image 2"
+              />
+            </div>
           </div>
 
           {/* Category + Date */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select
+              <ManageableSelect
                 value={form.category}
                 onValueChange={(v) => {
-                  const next = { ...form, category: v };
-                  setForm(next);
+                  setForm({ ...form, category: v });
                   void persist({ category: v });
                 }}
-              >
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                items={categories}
+                onAdd={addCategory}
+                onDelete={removeCategory}
+                placeholder="Category"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="dlg-date">Date</Label>
@@ -465,5 +412,74 @@ export default function TransactionDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A single receipt image slot (used twice for up to 2 images). */
+function ImageSlot({
+  src,
+  busy,
+  onPick,
+  onRemove,
+  label,
+}: {
+  src: string | null;
+  busy: boolean;
+  onPick: () => void;
+  onRemove: () => void;
+  label: string;
+}) {
+  if (src) {
+    return (
+      <div className="group relative aspect-[4/3] overflow-hidden rounded-lg border">
+        <img
+          src={src}
+          alt={label}
+          className="h-full w-full object-cover"
+        />
+        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-white">
+            <Receipt className="h-3 w-3" /> {label}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onPick}
+              disabled={busy}
+              className="grid h-6 w-6 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition hover:bg-background"
+              aria-label={`Replace ${label}`}
+              title="Replace"
+            >
+              <ImagePlus className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={busy}
+              className="grid h-6 w-6 place-items-center rounded-full bg-rose-600 text-white shadow-sm transition hover:bg-rose-700"
+              aria-label={`Remove ${label}`}
+              title="Remove"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      disabled={busy}
+      className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground transition hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-700 disabled:opacity-60"
+    >
+      {busy ? (
+        <Loader2 className="h-5 w-5 animate-spin" />
+      ) : (
+        <ImagePlus className="h-5 w-5" />
+      )}
+      <span>{busy ? "Uploading…" : label}</span>
+    </button>
   );
 }

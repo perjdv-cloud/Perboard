@@ -445,3 +445,29 @@ Stage Summary:
 - Finance entry simplified to: Income/Expense toggle, Account, Category, Amount, Date, Image upload (receipt) — description field removed
 - Receipt images can be attached inline and in the edit dialog, with thumbnail previews in income cards + expense list
 - Backend stores imageData as base64 data URL in the Transaction model
+
+---
+Task ID: 20
+Agent: Orchestrator
+Task: Finance — add/delete custom accounts & categories + upload 2 receipt images
+
+Work Log:
+- Added `imageData2 String?` column to the Transaction Prisma model (db:push + db:generate). Cleared .next cache + restarted dev server so the Prisma client recognized the new column.
+- Updated Transaction type with `imageData2: string | null`
+- Updated POST /api/transactions to accept + persist imageData2; PUT /api/transactions/[id] to accept/clear imageData2
+- Created `src/lib/pickers.ts`: a `useAccounts()` / `useCategories()` hook backed by localStorage (keys finance.accounts.v1 / finance.categories.v1), seeded with defaults (Cash/Bank/Card/UPI/Other + Salary/Food/Rent/Shopping/Transport/General/Other). Uses useSyncExternalStore for correct React 19 compatibility + cross-component sync via a custom window event so the inline entry and the edit dialog stay in sync. Exposes addAccount/removeAccount/addCategory/removeCategory.
+- Created `src/components/finance/ManageableSelect.tsx`: a Select paired with a "+" button that opens a Popover for adding new options (text input + Add button, Enter to confirm) and deleting existing ones (each item has a trash button; deletes fall back to the first remaining option if the active one is removed).
+- TransactionDialog: removed hardcoded ACCOUNTS/CATEGORIES exports; uses useAccounts/useCategories + ManageableSelect for Account & Category; replaced single receipt image with a 2-slot grid using a new `ImageSlot` helper (each slot: dashed picker when empty, image preview with Replace/Remove overlay buttons when filled, auto-saves via PUT)
+- FinanceTab: uses useAccounts/useCategories + ManageableSelect in the inline entry; InlineEntry + entry state include imageData2; saveEntry sends + clears both images; handleImagePick takes a slot param; replaced single Image button with two `InlineImageButton` helpers (Img 1 / Img 2)
+- IncomeCard: shows both receipt images side-by-side (flex, each aspect-4/3) when present
+- Verified via Agent Browser:
+  - Inline entry shows Account+manage, Category+manage, Amount, Date, Img 1, Img 2, Add
+  - Manage Account popover: typed "Wallet" → Add → "Delete Wallet" appeared → account select now has 6 options
+  - Added a ₹50 expense with the custom "Wallet" account → saved successfully (POST 201, response includes imageData + imageData2)
+  - Deleted "Wallet" via the popover trash button → removed from list
+  - Edit dialog shows Amount, Manage Account, Image 1 + Image 2 slots, Manage Category, Date
+  - No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- Accounts and categories are now user-manageable: add custom ones via the "+" popover next to each select, delete via the trash button. Persisted to localStorage and synced across the inline entry + edit dialog.
+- Up to 2 receipt images can be attached per transaction (both inline and in the edit dialog), with thumbnails shown on income cards.

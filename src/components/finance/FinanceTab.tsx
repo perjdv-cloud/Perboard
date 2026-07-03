@@ -42,10 +42,10 @@ import {
   sortItems,
 } from "@/lib/api";
 import type { Transaction, TransactionType, SortKey } from "@/lib/types";
+import { useAccounts, useCategories } from "@/lib/pickers";
 import { toast } from "@/hooks/use-toast";
+import ManageableSelect from "./ManageableSelect";
 import TransactionDialog, {
-  ACCOUNTS,
-  CATEGORIES,
   toDateInput,
   fromDateInput,
 } from "./TransactionDialog";
@@ -85,6 +85,7 @@ interface InlineEntry {
   description: string;
   category: string;
   imageData: string | null;
+  imageData2: string | null;
   date: string; // YYYY-MM-DD
 }
 
@@ -101,6 +102,9 @@ export default function FinanceTab() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const { accounts, addAccount, removeAccount } = useAccounts();
+  const { categories, addCategory, removeCategory } = useCategories();
+
   // Inline entry state — type/account/category/date are "sticky" defaults.
   const [entry, setEntry] = React.useState<InlineEntry>({
     type: "expense",
@@ -109,12 +113,14 @@ export default function FinanceTab() {
     description: "",
     category: "Food",
     imageData: null,
+    imageData2: null,
     date: todayDateInput(),
   });
   const [inlineSaving, setInlineSaving] = React.useState(false);
   const [inlineFlash, setInlineFlash] = React.useState(false);
   const amountRef = React.useRef<HTMLInputElement>(null);
   const imageInputRef = React.useRef<HTMLInputElement>(null);
+  const image2InputRef = React.useRef<HTMLInputElement>(null);
 
   // Income section state
   const [accountTab, setAccountTab] = React.useState<string>("All");
@@ -191,6 +197,7 @@ export default function FinanceTab() {
           description: entry.description.trim(),
           category: entry.category,
           imageData: entry.imageData,
+          imageData2: entry.imageData2,
           date: fromDateInput(entry.date),
         }),
       });
@@ -208,8 +215,8 @@ export default function FinanceTab() {
           amountNum
         )} added`,
       });
-      // Clear amount + image; keep sticky defaults for fast re-entry.
-      setEntry((prev) => ({ ...prev, amount: "", imageData: null }));
+      // Clear amount + images; keep sticky defaults for fast re-entry.
+      setEntry((prev) => ({ ...prev, amount: "", imageData: null, imageData2: null }));
       setInlineFlash(true);
       window.setTimeout(() => setInlineFlash(false), 1200);
       // Refocus amount for rapid entry.
@@ -243,13 +250,17 @@ export default function FinanceTab() {
     }
   };
 
-  // Image upload handler for inline entry
-  const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image upload handler for inline entry (supports 2 slots)
+  const handleImagePick = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slot: 1 | 2
+  ) => {
     const f = e.target.files?.[0];
     if (f) {
       try {
         const d = await readFileAsDataURL(f);
-        setEntry((prev) => ({ ...prev, imageData: d }));
+        const key = slot === 1 ? "imageData" : "imageData2";
+        setEntry((prev) => ({ ...prev, [key]: d }));
       } catch {
         toast({ title: "Could not read image", variant: "destructive" });
       }
@@ -341,48 +352,35 @@ export default function FinanceTab() {
               </ToggleGroupItem>
             </ToggleGroup>
 
-            {/* Account */}
-            <Select
-              value={entry.account}
-              onValueChange={(v) =>
-                setEntry((prev) => ({ ...prev, account: v }))
-              }
-            >
-              <SelectTrigger
-                size="sm"
-                className="h-9 w-full min-w-[7rem] sm:w-32"
-              >
-                <SelectValue placeholder="Account" />
-              </SelectTrigger>
-              <SelectContent>
-                {ACCOUNTS.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    <AccountIcon account={a} className="h-4 w-4" />
-                    {a}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Account (manageable) */}
+            <div className="w-full min-w-[8rem] sm:w-40">
+              <ManageableSelect
+                value={entry.account}
+                onValueChange={(v) =>
+                  setEntry((prev) => ({ ...prev, account: v }))
+                }
+                items={accounts}
+                onAdd={addAccount}
+                onDelete={removeAccount}
+                placeholder="Account"
+                renderItem={(a) => <AccountIcon account={a} className="h-4 w-4" />}
+              />
+            </div>
 
-            {/* Category */}
-            <Select
-              value={entry.category}
-              onValueChange={(v) =>
-                setEntry((prev) => ({ ...prev, category: v }))
-              }
-            >
-              <SelectTrigger size="sm" className="h-9 w-full sm:w-36">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    <CategoryIcon category={c} className="h-4 w-4" />
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Category (manageable) */}
+            <div className="w-full min-w-[8rem] sm:w-44">
+              <ManageableSelect
+                value={entry.category}
+                onValueChange={(v) =>
+                  setEntry((prev) => ({ ...prev, category: v }))
+                }
+                items={categories}
+                onAdd={addCategory}
+                onDelete={removeCategory}
+                placeholder="Category"
+                renderItem={(c) => <CategoryIcon category={c} className="h-4 w-4" />}
+              />
+            </div>
 
             {/* Amount */}
             <Input
@@ -415,53 +413,33 @@ export default function FinanceTab() {
               className="h-9 w-full sm:w-40"
             />
 
-            {/* Image upload (receipt/bill) */}
+            {/* Image uploads (2 receipt images) */}
             <input
               ref={imageInputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleImagePick}
+              onChange={(e) => void handleImagePick(e, 1)}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => imageInputRef.current?.click()}
-              className={cn(
-                "h-9 gap-1.5",
-                entry.imageData
-                  ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                  : ""
-              )}
-              title="Attach receipt image"
-            >
-              {entry.imageData ? (
-                <img
-                  src={entry.imageData}
-                  alt=""
-                  className="h-5 w-5 rounded object-cover"
-                />
-              ) : (
-                <ImagePlus className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline">
-                {entry.imageData ? "Added" : "Image"}
-              </span>
-              {entry.imageData && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEntry((prev) => ({ ...prev, imageData: null }));
-                  }}
-                  className="ml-0.5 grid h-4 w-4 place-items-center rounded-full bg-emerald-200 text-emerald-800 hover:bg-emerald-300 dark:bg-emerald-800 dark:text-emerald-100"
-                  aria-label="Remove image"
-                >
-                  ×
-                </button>
-              )}
-            </Button>
+            <input
+              ref={image2InputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => void handleImagePick(e, 2)}
+            />
+            <InlineImageButton
+              imageData={entry.imageData}
+              slot={1}
+              onPick={() => imageInputRef.current?.click()}
+              onClear={() => setEntry((prev) => ({ ...prev, imageData: null }))}
+            />
+            <InlineImageButton
+              imageData={entry.imageData2}
+              slot={2}
+              onPick={() => image2InputRef.current?.click()}
+              onClear={() => setEntry((prev) => ({ ...prev, imageData2: null }))}
+            />
 
             {/* Add button */}
             <Button
@@ -764,15 +742,29 @@ function IncomeCard({
       onClick={onClick}
       className="group flex flex-col gap-2 overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
     >
-      {/* Receipt image (if any) */}
-      {transaction.imageData && (
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-          <img
-            src={transaction.imageData}
-            alt="Receipt"
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
+      {/* Receipt images (up to 2) */}
+      {(transaction.imageData || transaction.imageData2) && (
+        <div className="relative flex w-full gap-0.5 overflow-hidden bg-muted">
+          {transaction.imageData && (
+            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
+              <img
+                src={transaction.imageData}
+                alt="Receipt 1"
+                loading="lazy"
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+          )}
+          {transaction.imageData2 && (
+            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
+              <img
+                src={transaction.imageData2}
+                alt="Receipt 2"
+                loading="lazy"
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+          )}
           <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-background/90 text-emerald-600 shadow-sm">
             <Receipt className="h-3 w-3" />
           </span>
@@ -840,5 +832,60 @@ function EmptyState({
       <p className="text-sm font-medium">{title}</p>
       <p className="max-w-xs text-xs text-muted-foreground">{description}</p>
     </div>
+  );
+}
+
+/** Compact image attach button for the inline entry (supports 2 slots). */
+function InlineImageButton({
+  imageData,
+  slot,
+  onPick,
+  onClear,
+}: {
+  imageData: string | null;
+  slot: 1 | 2;
+  onPick: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={onPick}
+      className={cn(
+        "h-9 shrink-0 gap-1.5 px-3",
+        imageData
+          ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+          : ""
+      )}
+      title={`Attach receipt image ${slot}`}
+    >
+      {imageData ? (
+        <img
+          src={imageData}
+          alt=""
+          className="h-5 w-5 rounded object-cover"
+        />
+      ) : (
+        <ImagePlus className="h-4 w-4" />
+      )}
+      <span className="hidden sm:inline">
+        {imageData ? `Img ${slot}` : `Img ${slot}`}
+      </span>
+      {imageData && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClear();
+          }}
+          className="ml-0.5 grid h-4 w-4 place-items-center rounded-full bg-emerald-200 text-emerald-800 hover:bg-emerald-300 dark:bg-emerald-800 dark:text-emerald-100"
+          aria-label={`Remove image ${slot}`}
+        >
+          ×
+        </button>
+      )}
+    </Button>
   );
 }

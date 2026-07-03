@@ -18,6 +18,7 @@ export async function PUT(
     description?: string;
     category?: string;
     imageData?: string | null;
+    imageData2?: string | null;
     date?: Date;
   } = {};
 
@@ -41,6 +42,15 @@ export async function PUT(
     body.imageData.startsWith("data:")
   ) {
     data.imageData = body.imageData;
+  }
+  // imageData2: accept a data URL string, or null to clear it
+  if (body.imageData2 === null) {
+    data.imageData2 = null;
+  } else if (
+    typeof body.imageData2 === "string" &&
+    body.imageData2.startsWith("data:")
+  ) {
+    data.imageData2 = body.imageData2;
   }
   if (body.date) {
     const d = new Date(body.date);
