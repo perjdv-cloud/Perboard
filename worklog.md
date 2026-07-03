@@ -188,3 +188,26 @@ Work Log:
 
 Stage Summary:
 - Notes search + Take-a-note composer are now noticeably more compact while keeping all functionality (search, sort, text/image/draw/voice, color, folder, auto-save)
+
+---
+Task ID: 8
+Agent: Orchestrator
+Task: Make Add note, search, and sorting inline in the Notes tab
+
+Work Log:
+- Added `composerOpen` state to NotesTab
+- Replaced the separate stacked rows (search+sort row, then inline composer card) with a single inline toolbar row: [Add note button] [Search input] [Sort select] — all on one line, responsive (Add note shows full label on sm+, "Add" on mobile)
+- Converted the ComposerCard from an inline expanding card into a Dialog-based composer controlled by `open`/`onOpenChange`
+- Removed the collapsed "Take a note" button (no longer needed); the composer now opens as a modal dialog titled "New note"
+- Refactored reset/handleDone/handleCancel into clearForm + closeComposer + handleOpenChange so closing the dialog (X, Escape, or Done) flushes the auto-save and clears the form
+- Updated EmptyState CTA to open the composer dialog via setComposerOpen(true) instead of scrolling to the old inline composer
+- Added `aria-describedby={undefined}` to the composer DialogContent to fix the Radix a11y warning
+- Kept the nested drawing-canvas Dialog working inside the composer dialog
+- Verified via Agent Browser: inline toolbar renders (Add note + Search + Recent sort in one row), clicking Add note opens the dialog, typed a note → auto-saved (POST 201) → appeared in grid, search filtering works inline, no console warnings/errors
+- Cleaned up the verification test note via API
+- `bun run lint` clean
+
+Stage Summary:
+- Notes tab top area is now a single inline row: Add note + Search + Sort
+- Note creation happens via a clean dialog (auto-save preserved) instead of an inline expanding card
+- All existing functionality retained: text/image/draw/voice, color picker, folder selector, auto-save, enlarge-on-click, pin/delete

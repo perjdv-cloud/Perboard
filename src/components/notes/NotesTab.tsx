@@ -107,6 +107,7 @@ export default function NotesTab() {
   const [editorNote, setEditorNote] = useState<Note | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
 
+  const [composerOpen, setComposerOpen] = useState(false);
   const [addFolderOpen, setAddFolderOpen] = useState(false);
 
   const loadFolders = useCallback(async () => {
@@ -256,9 +257,18 @@ export default function NotesTab() {
 
   return (
     <div className="space-y-3">
-      {/* Top bar: search + sort */}
+      {/* Inline toolbar: Add note + search + sort */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+        <Button
+          type="button"
+          onClick={() => setComposerOpen(true)}
+          className="h-9 shrink-0 gap-1.5 rounded-full bg-amber-500 px-4 text-sm font-medium text-white shadow-sm hover:bg-amber-600"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Add note</span>
+          <span className="sm:hidden">Add</span>
+        </Button>
+        <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -305,10 +315,12 @@ export default function NotesTab() {
         onDelete={handleDeleteFolder}
       />
 
-      {/* Quick composer */}
+      {/* Quick composer (dialog) */}
       <ComposerCard
         folders={folders}
         activeFolder={activeFolder}
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
         onCreated={handleCreated}
         onUpdated={handleSaved}
       />
@@ -329,13 +341,7 @@ export default function NotesTab() {
       ) : filteredNotes.length === 0 ? (
         <EmptyState
           hasSearch={!!search.trim()}
-          onCreate={() => {
-            // focus composer by scrolling into view; the composer expands on click
-            const el = document.getElementById("note-composer");
-            if (el) {
-              el.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          }}
+          onCreate={() => setComposerOpen(true)}
         />
       ) : (
         <div className="columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
@@ -607,15 +613,18 @@ function AddFolderDialog({
 function ComposerCard({
   folders,
   activeFolder,
+  open,
+  onOpenChange,
   onCreated,
   onUpdated,
 }: {
   folders: NoteFolder[];
   activeFolder: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onCreated: (note: Note) => void;
   onUpdated: (note: Note) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [type, setType] = useState<NoteType>("text");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -743,7 +752,7 @@ function ComposerCard({
     }, 700);
   }, []);
 
-  const reset = () => {
+  const clearForm = () => {
     setType("text");
     setTitle("");
     setContent("");
@@ -751,49 +760,41 @@ function ComposerCard({
     setAudioData(null);
     setColor(NOTE_COLORS[0]);
     setNoteId(null);
-    setExpanded(false);
     setSaveState("idle");
   };
 
-  const handleDone = async () => {
+  const closeComposer = async () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
     await doSaveRef.current();
-    reset();
+    clearForm();
+    onOpenChange(false);
   };
 
-  const handleCancel = async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      onOpenChange(true);
+    } else {
+      void closeComposer();
     }
-    await doSaveRef.current();
-    reset();
   };
 
   const activeTypeBtn = (t: NoteType) => type === t;
 
   return (
-    <div
-      id="note-composer"
-      className="rounded-xl border border-border/60 bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md"
-      style={{ borderLeftColor: color, borderLeftWidth: 3 }}
-    >
-      {!expanded ? (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="flex w-full items-center gap-2 py-0.5 text-left text-sm text-muted-foreground"
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          aria-describedby={undefined}
+          className="gap-0 overflow-hidden p-0 sm:max-w-lg"
+          style={{ borderLeftColor: color, borderLeftWidth: 4 }}
         >
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
-            <Plus className="h-3.5 w-3.5" />
-          </span>
-          <span>Take a note…</span>
-        </button>
-      ) : (
-        <div className="space-y-2">
+          <DialogHeader className="px-4 pb-0 pt-4">
+            <DialogTitle className="text-base">New note</DialogTitle>
+          </DialogHeader>
+        <div className="space-y-2 px-4 pb-4">
           {/* Title */}
           <input
             value={title}
@@ -1027,12 +1028,9 @@ function ComposerCard({
 
             <div className="flex items-center gap-2">
               <SaveIndicator state={saveState} />
-              <Button size="sm" variant="ghost" onClick={handleCancel}>
-                Close
-              </Button>
               <Button
                 size="sm"
-                onClick={handleDone}
+                onClick={closeComposer}
                 className="bg-amber-500 text-white hover:bg-amber-600"
               >
                 Done
@@ -1040,7 +1038,8 @@ function ComposerCard({
             </div>
           </div>
         </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Drawing canvas dialog */}
       <Dialog open={drawOpen} onOpenChange={setDrawOpen}>
@@ -1064,7 +1063,7 @@ function ComposerCard({
           />
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 
