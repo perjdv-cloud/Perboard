@@ -363,7 +363,6 @@ export default function FinanceTab() {
                 onAdd={addAccount}
                 onDelete={removeAccount}
                 placeholder="Account"
-                renderItem={(a) => <AccountIcon account={a} className="h-4 w-4" />}
               />
             </div>
 
@@ -378,7 +377,6 @@ export default function FinanceTab() {
                 onAdd={addCategory}
                 onDelete={removeCategory}
                 placeholder="Category"
-                renderItem={(c) => <CategoryIcon category={c} className="h-4 w-4" />}
               />
             </div>
 

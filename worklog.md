@@ -497,3 +497,21 @@ Stage Summary:
 - Account & Category dropdowns now show the selected value as text in the trigger (like a normal select)
 - Add and delete happen inside the dropdown itself: list items each have a trash button, and an "Add new" input+button row sits at the bottom of the dropdown
 - No more separate "+" manage popover
+
+---
+Task ID: 22
+Agent: Orchestrator
+Task: Finance — remove icons from account & category dropdowns
+
+Work Log:
+- Removed the `renderItem` prop (which rendered AccountIcon/CategoryIcon) from both ManageableSelect usages in FinanceTab's inline entry (Account + Category)
+- TransactionDialog's ManageableSelect usages already omitted renderItem, so no change needed there
+- AccountIcon/CategoryIcon helpers are still used in income cards, expense list, and account tabs (no unused-variable issue)
+- Verified via Agent Browser:
+  - Inline entry: Account trigger shows "Cash", Category shows "Food" (text only, no icons)
+  - Account dropdown items: Cash/Bank/Card/UPI/Other shown as plain text + delete buttons (no icons)
+  - Edit dialog: Account trigger shows "Bank", Category shows "Food" (text only); dropdown items are plain text
+- `bun run lint` clean; no console/runtime errors
+
+Stage Summary:
+- Account & category dropdowns (trigger + list items) now show only text — no icons
