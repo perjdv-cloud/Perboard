@@ -345,3 +345,20 @@ Stage Summary:
 - Folder pills are smoothly swipable (soft spring) with ‹ › chevrons as an accessible alternative
 - File cards are compact in height (4:3 thumbnails, tighter padding/typography)
 - Search by file name works inline
+
+---
+Task ID: 15
+Agent: Orchestrator
+Task: Files — light blue theme, swipe on file content area, halve card height
+
+Work Log:
+- Changed the Files tab theme from rose to light blue (sky): all `rose-*` classes → `sky-*` (upload button, search drag-over ring, new-folder pill, add-folder dialog color ring + create button, empty-state icon + CTA, file card delete button, folder pill delete chip, image type badge, "All Files" accent). "All Files" pill accent #f43f5e → #38bdf8
+- Moved the swipe gesture from the folder pills row to the file content area (matching Notes): reverted folder pills to a plain scrollable div; wrapped the section heading + pending uploads + files grid + empty state in a framer-motion `motion.div` with `drag="x"`, `dragConstraints={{left:0,right:0}}`, `dragElastic={0.1}`, soft spring `dragTransition { stiffness:180, damping:26, mass:0.5 }`, 32px threshold, `whileDrag cursor:grabbing`. Drag left/right switches to next/previous folder via swipeFolder()
+- Halved the file card height: thumbnail aspect ratio `aspect-[4/3]` → `aspect-[8/3]` (height is half: from 0.75×width to 0.375×width). Applied to FileCard, FileCardSkeleton, and pending-upload skeleton
+- Verified via Agent Browser + VLM at mobile 390×844: theme confirmed light blue, file cards short/half-height with wide short thumbnails, no layout issues; folder switching via content-area chevrons works both directions (All files → Gear → All files); clicking a file opens the viewer cleanly (drag didn't break taps); no console/runtime errors
+- `bun run lint` clean
+
+Stage Summary:
+- Files tab now uses a light blue (sky) theme instead of rose
+- Folder swipe lives on the file content area (heading + grid), not the folder pills row — folder pills are click/scroll only
+- File card thumbnails are half their previous height (aspect 8:3), making the grid much more compact vertically
