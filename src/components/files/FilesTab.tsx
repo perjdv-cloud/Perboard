@@ -12,7 +12,6 @@ import {
   FolderOpen,
   FolderPlus,
   Upload,
-  UploadCloud,
   Trash2,
   Download,
   FileText,
@@ -24,7 +23,9 @@ import {
   ArrowUpDown,
   Check,
   Loader2,
-  CloudUpload,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -143,6 +144,7 @@ export default function FilesTab() {
 
   const [activeFolder, setActiveFolder] = useState<FolderFilter>("all");
   const [sort, setSort] = useState<SortKey>("recent");
+  const [search, setSearch] = useState("");
 
   const [addFolderOpen, setAddFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -369,65 +371,68 @@ export default function FilesTab() {
     setViewerOpen(true);
   };
 
-  const sortedFiles = useMemo(
-    () => sortItems(files, sort),
-    [files, sort]
-  );
+  const sortedFiles = useMemo(() => {
+    let arr = files;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      arr = arr.filter((f) => f.name.toLowerCase().includes(q));
+    }
+    return sortItems(arr, sort);
+  }, [files, sort, search]);
 
   const activeFolderObj = useMemo(
     () => (activeFolder === "all" ? null : folders.find((f) => f.id === activeFolder) ?? null),
     [activeFolder, folders]
   );
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Folder pills row (swipable) */}
-      <div className="relative -mx-1">
-        <div
-          className="no-scrollbar flex items-stretch gap-2 overflow-x-auto px-1 pb-1"
-          style={{
-            scrollSnapType: "x proximity",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          <FolderPill
-            active={activeFolder === "all"}
-            onClick={() => setActiveFolder("all")}
-            label="All Files"
-            icon={<FolderOpen className="h-4 w-4" />}
-            count={undefined}
-            accent="#f43f5e"
-          />
-          {loadingFolders
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-9 w-28 shrink-0 rounded-full" />
-              ))
-            : folders.map((f) => (
-                <FolderPill
-                  key={f.id}
-                  active={activeFolder === f.id}
-                  onClick={() => setActiveFolder(f.id)}
-                  label={f.name}
-                  icon={<Folder className="h-4 w-4" />}
-                  accent={f.color}
-                  onDelete={() => handleDeleteFolder(f)}
-                  deleting={deletingFolderId === f.id}
-                />
-              ))}
-          <button
-            type="button"
-            onClick={() => setAddFolderOpen(true)}
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-rose-300 bg-rose-50/60 px-3 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/60"
-            style={{ scrollSnapAlign: "start" }}
-          >
-            <FolderPlus className="h-4 w-4" />
-            <span>New folder</span>
-          </button>
-        </div>
-      </div>
+  // Ordered folder ids for swiping between folders
+  const folderOrder = useMemo(
+    () => ["all", ...folders.map((f) => f.id)],
+    [folders]
+  );
+  const folderIndex = folderOrder.indexOf(activeFolder);
 
-      {/* Upload zone + sort */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+  const swipeFolder = useCallback(
+    (dir: 1 | -1) => {
+      const idx = folderOrder.indexOf(activeFolder);
+      if (idx === -1) {
+        setActiveFolder("all");
+        return;
+      }
+      const next = idx + dir;
+      if (next < 0 || next >= folderOrder.length) return;
+      setActiveFolder(folderOrder[next]);
+    },
+    [folderOrder, activeFolder]
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Inline toolbar: Upload + search + sort */}
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="h-9 shrink-0 gap-1.5 rounded-full bg-rose-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-rose-700"
+        >
+          {uploadingCount > 0 ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+          <span className="hidden sm:inline">
+            {uploadingCount > 0 ? `Uploading ${uploadingCount}` : "Upload"}
+          </span>
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_EXT.map((e) => `.${e}`).join(",")}
+          className="hidden"
+          onChange={onFileInputChange}
+        />
+        {/* Drop target wrapper for the search input */}
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -435,82 +440,34 @@ export default function FilesTab() {
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          role="button"
-          tabIndex={0}
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              fileInputRef.current?.click();
-            }
-          }}
-          aria-label="Upload files"
-          className={cn(
-            "group relative flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition-all sm:flex-row sm:justify-between sm:gap-4 sm:px-6",
-            dragOver
-              ? "border-rose-500 bg-rose-50 dark:bg-rose-950/40"
-              : "border-rose-200 bg-rose-50/30 hover:border-rose-400 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/20 dark:hover:border-rose-700 dark:hover:bg-rose-950/40"
-          )}
+          className="relative min-w-0 flex-1"
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED_EXT.map((e) => `.${e}`).join(",")}
-            className="hidden"
-            onChange={onFileInputChange}
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search files…"
+            className={cn(
+              "h-9 rounded-full border-border/70 bg-card pl-9 pr-8 text-sm shadow-sm",
+              dragOver && "border-rose-500 ring-2 ring-rose-200 dark:ring-rose-900/50"
+            )}
           />
-          <div className="flex items-center gap-3">
-            <div
-              className={cn(
-                "grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-sm transition-transform group-hover:scale-105",
-                uploadingCount > 0 && "animate-pulse"
-              )}
-            >
-              {uploadingCount > 0 ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <CloudUpload className="h-6 w-6" />
-              )}
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-foreground">
-                {uploadingCount > 0
-                  ? `Uploading ${uploadingCount} file${uploadingCount > 1 ? "s" : ""}…`
-                  : "Drop files to auto-save"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Images, PDF, Excel, Word &amp; txt · saved to{" "}
-                <span className="font-medium text-rose-700 dark:text-rose-300">
-                  {activeFolder === "all" ? "All Files" : activeFolderObj?.name ?? "folder"}
-                </span>
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
+          {search && (
+            <button
               type="button"
-              size="sm"
-              variant="default"
-              className="h-9 bg-rose-600 text-white shadow-sm hover:bg-rose-700"
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Clear search"
             >
-              <Upload className="h-4 w-4" />
-              Upload
-            </Button>
-          </div>
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </div>
-
-        {/* Sort */}
-        <div className="flex items-center gap-2 lg:flex-none">
-          <ArrowUpDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
+        <div className="relative shrink-0">
+          <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
             <SelectTrigger
-              size="sm"
-              className="h-9 w-[150px] bg-background"
+              className="h-9 w-[128px] rounded-full border-border/70 bg-card pl-8 pr-7 text-sm shadow-sm"
               aria-label="Sort files"
             >
               <SelectValue />
@@ -522,6 +479,94 @@ export default function FilesTab() {
               <SelectItem value="type">Type</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      {/* Folder pills row (scrollable + swipe-to-switch) */}
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.1}
+        dragMomentum={false}
+        dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+        transition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+        onDragEnd={(_, info) => {
+          const threshold = 32;
+          if (info.offset.x < -threshold) swipeFolder(1);
+          else if (info.offset.x > threshold) swipeFolder(-1);
+        }}
+        whileDrag={{ cursor: "grabbing" }}
+        className="-mx-1 no-scrollbar flex cursor-grab items-stretch gap-2 overflow-x-auto px-1 pb-1 select-none"
+        style={{
+          scrollSnapType: "x proximity",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        <FolderPill
+          active={activeFolder === "all"}
+          onClick={() => setActiveFolder("all")}
+          label="All Files"
+          icon={<FolderOpen className="h-4 w-4" />}
+          count={undefined}
+          accent="#f43f5e"
+        />
+        {loadingFolders
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-28 shrink-0 rounded-full" />
+            ))
+          : folders.map((f) => (
+              <FolderPill
+                key={f.id}
+                active={activeFolder === f.id}
+                onClick={() => setActiveFolder(f.id)}
+                label={f.name}
+                icon={<Folder className="h-4 w-4" />}
+                accent={f.color}
+                onDelete={() => handleDeleteFolder(f)}
+                deleting={deletingFolderId === f.id}
+              />
+            ))}
+        <button
+          type="button"
+          onClick={() => setAddFolderOpen(true)}
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-rose-300 bg-rose-50/60 px-3 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/60"
+          style={{ scrollSnapAlign: "start" }}
+        >
+          <FolderPlus className="h-4 w-4" />
+          <span>New folder</span>
+        </button>
+      </motion.div>
+
+      {/* Section heading with prev/next + swipe hint */}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          {activeFolder === "all"
+            ? "All files"
+            : activeFolderObj?.name ?? "Files"}
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+            {sortedFiles.length}
+          </span>
+        </h2>
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => swipeFolder(-1)}
+            disabled={folderIndex <= 0}
+            className="grid h-7 w-7 place-items-center rounded-full transition hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Previous folder"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="hidden text-[11px] font-normal sm:inline">swipe</span>
+          <button
+            type="button"
+            onClick={() => swipeFolder(1)}
+            disabled={folderIndex >= folderOrder.length - 1}
+            className="grid h-7 w-7 place-items-center rounded-full transition hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Next folder"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -538,15 +583,15 @@ export default function FilesTab() {
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Saving {pendingUploads.length} file(s)…
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9">
               {pendingUploads.map((p) => (
                 <div
                   key={p.id}
-                  className="flex aspect-[3/4] flex-col gap-2 rounded-xl border border-rose-200/70 bg-rose-50/40 p-2 dark:border-rose-900/50 dark:bg-rose-950/20"
+                  className="flex flex-col gap-1.5 rounded-lg border border-rose-200/70 bg-rose-50/40 p-1.5 dark:border-rose-900/50 dark:bg-rose-950/20"
                 >
-                  <Skeleton className="aspect-square w-full rounded-lg" />
-                  <Skeleton className="h-3 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="aspect-[4/3] w-full rounded-md" />
+                  <Skeleton className="h-2.5 w-3/4" />
+                  <Skeleton className="h-2.5 w-1/2" />
                 </div>
               ))}
             </div>
@@ -557,7 +602,7 @@ export default function FilesTab() {
       {/* Files grid */}
       <section
         aria-label="Files"
-        className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-9"
       >
         {loadingFiles
           ? Array.from({ length: 8 }).map((_, i) => (
@@ -800,10 +845,10 @@ function FileCard({
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.18 }}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+      transition={{ duration: 0.16 }}
+      className="group relative flex flex-col overflow-hidden rounded-lg border border-border/70 bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
-      <div className="relative block aspect-square w-full overflow-hidden bg-muted/50">
+      <div className="relative block aspect-[4/3] w-full overflow-hidden bg-muted/50">
         <button
           type="button"
           onClick={onOpen}
@@ -820,7 +865,7 @@ function FileCard({
         ) : (
           <div
             className={cn(
-              "pointer-events-none flex h-full w-full flex-col items-center justify-center gap-2",
+              "pointer-events-none flex h-full w-full flex-col items-center justify-center gap-1.5",
               file.type === "pdf" &&
                 "bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/40 dark:to-amber-900/20",
               file.type === "excel" &&
@@ -831,29 +876,29 @@ function FileCard({
           >
             <div
               className={cn(
-                "grid h-12 w-12 place-items-center rounded-xl",
+                "grid h-9 w-9 place-items-center rounded-lg",
                 meta.cls
               )}
             >
-              <Icon className="h-6 w-6" />
+              <Icon className="h-5 w-5" />
             </div>
-            <span className="px-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="px-2 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
               {extOf(file.name) || meta.label}
             </span>
           </div>
         )}
 
         {/* Hover overlay actions (siblings, not nested in the open button) */}
-        <div className="pointer-events-none absolute inset-0 flex items-start justify-end gap-1 bg-gradient-to-b from-black/30 via-transparent to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="pointer-events-none absolute inset-0 flex items-start justify-end gap-1 bg-gradient-to-b from-black/30 via-transparent to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
           <a
             href={file.data}
             download={file.name}
             onClick={(e) => e.stopPropagation()}
-            className="pointer-events-auto grid h-7 w-7 place-items-center rounded-full bg-background/95 text-foreground shadow-sm transition-colors hover:bg-background"
+            className="pointer-events-auto grid h-6 w-6 place-items-center rounded-full bg-background/95 text-foreground shadow-sm transition-colors hover:bg-background"
             aria-label="Download"
             title="Download"
           >
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-3 w-3" />
           </a>
           <button
             type="button"
@@ -862,37 +907,37 @@ function FileCard({
               onDelete();
             }}
             disabled={deleting}
-            className="pointer-events-auto grid h-7 w-7 place-items-center rounded-full bg-rose-600 text-white shadow-sm transition-colors hover:bg-rose-700 disabled:opacity-70"
+            className="pointer-events-auto grid h-6 w-6 place-items-center rounded-full bg-rose-600 text-white shadow-sm transition-colors hover:bg-rose-700 disabled:opacity-70"
             aria-label="Delete"
             title="Delete"
           >
             {deleting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-3 w-3" />
             )}
           </button>
         </div>
       </div>
 
       {/* Meta */}
-      <div className="flex flex-col gap-1 p-2.5">
+      <div className="flex flex-col gap-0.5 p-1.5">
         <div className="flex items-center gap-1.5">
           <Badge
             variant="secondary"
-            className={cn("px-1.5 py-0 text-[9px] font-semibold uppercase", meta.cls)}
+            className={cn("px-1 py-0 text-[8px] font-semibold uppercase", meta.cls)}
           >
             <Icon className="h-2.5 w-2.5" />
             {meta.label}
           </Badge>
-          <span className="ml-auto text-[10px] text-muted-foreground">
+          <span className="ml-auto text-[9px] text-muted-foreground">
             {formatBytes(file.size)}
           </span>
         </div>
-        <p className="truncate text-xs font-medium" title={file.name}>
+        <p className="truncate text-[11px] font-medium leading-tight" title={file.name}>
           {file.name}
         </p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[9px] text-muted-foreground">
           {formatDate(file.createdAt)}
         </p>
       </div>
@@ -902,15 +947,15 @@ function FileCard({
 
 function FileCardSkeleton() {
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background">
-      <Skeleton className="aspect-square w-full rounded-none" />
-      <div className="flex flex-col gap-1.5 p-2.5">
+    <div className="flex flex-col overflow-hidden rounded-lg border border-border/60 bg-background">
+      <Skeleton className="aspect-[4/3] w-full rounded-none" />
+      <div className="flex flex-col gap-1 p-1.5">
         <div className="flex justify-between">
-          <Skeleton className="h-3 w-10" />
-          <Skeleton className="h-3 w-8" />
+          <Skeleton className="h-2.5 w-10" />
+          <Skeleton className="h-2.5 w-8" />
         </div>
-        <Skeleton className="h-3 w-3/4" />
-        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-2.5 w-3/4" />
+        <Skeleton className="h-2.5 w-1/3" />
       </div>
     </div>
   );

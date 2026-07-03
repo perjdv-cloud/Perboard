@@ -320,3 +320,28 @@ Stage Summary:
 - Notes folder swipe now uses a soft spring (stiffness 180, damping 26, mass 0.5) for a gentle, cushioned snap-back
 - Lower elastic (0.1) keeps movement subtle; lower threshold (32px) makes gentle flicks register
 - Chevron buttons remain as a reliable desktop/keyboard alternative
+
+---
+Task ID: 14
+Agent: Orchestrator
+Task: Files — inline upload/search/sort, smooth swipable folders, compact-height grid
+
+Work Log:
+- Added a `search` state and updated `sortedFiles` to filter by file name (case-insensitive) before sorting
+- Replaced the big upload drop-zone + sort block with a single inline toolbar row: [Upload button] [Search input] [Sort select] — all h-9, rounded-full, responsive (Upload label hidden on mobile). The search input doubles as the drag-drop target (onDragOver/onDrop still works; highlights with rose ring when dragging over)
+- Added a compact section heading with ‹ swipe › chevrons + "swipe" hint (matching Notes tab) showing the active folder name + file count
+- Made the folder pills row smoothly swipable: wrapped in a framer-motion `motion.div` with `drag="x"`, `dragConstraints={{left:0,right:0}}`, `dragElastic={0.1}`, soft spring `dragTransition { stiffness:180, damping:26, mass:0.5 }`, 32px threshold, `whileDrag cursor:grabbing`. Dragging left/right switches to the next/previous folder via a new `swipeFolder(dir)` callback + `folderOrder` (["all", ...folderIds])
+- Removed the now-unused `UploadCloud` and `CloudUpload` icon imports
+- Made the files grid + cards compact in height:
+  - Grid gap: gap-3 → gap-2 (mobile) / sm:gap-3
+  - FileCard: thumbnail aspect-square → aspect-[4/3] (shorter); rounded-xl → rounded-lg; meta padding p-2.5 → p-1.5; meta gap-1 → gap-0.5; non-image icon h-12 w-12 → h-9 w-9; text sizes reduced (text-xs → text-[11px], text-[10px] → text-[9px]); hover action buttons h-7 w-7 → h-6 w-6
+  - FileCardSkeleton matched: aspect-[4/3], rounded-lg, tighter padding
+  - Pending upload skeleton row: aspect-[3/4] → aspect-[4/3], tighter padding
+- Verified via Agent Browser + VLM at mobile 390×844: inline toolbar confirmed (Upload + Search + Sort in one row), file cards compact with short thumbnails, search filters correctly (typed "e312" → 1 file, cleared → 8 files), folder switching works via chevrons (All files → Gear → All files), no console/runtime errors
+- `bun run lint` clean
+
+Stage Summary:
+- Files tab top area is now a single inline row: Upload + Search + Sort
+- Folder pills are smoothly swipable (soft spring) with ‹ › chevrons as an accessible alternative
+- File cards are compact in height (4:3 thumbnails, tighter padding/typography)
+- Search by file name works inline
