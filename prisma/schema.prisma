@@ -1,0 +1,72 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Notes ----------
+model NoteFolder {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#f5d5b0")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notes     Note[]
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  folderId  String?
+  folder    NoteFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  title     String   @default("")
+  content   String   @default("")
+  type      String   @default("text") // text | image | draw | voice
+  color     String   @default("#fef3c7")
+  pinned    Boolean  @default(false)
+  imageData String?  // base64 data URL
+  audioData String?  // base64 data URL
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------- Files ----------
+model FileFolder {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#bfdbfe")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  files     FileItem[]
+}
+
+model FileItem {
+  id        String   @id @default(cuid())
+  folderId  String?
+  folder    FileFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  name      String
+  type      String   @default("document") // image | document | pdf | excel
+  mimeType  String   @default("")
+  data      String   @default("") // base64 data URL
+  size      Int      @default(0) // bytes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------- Finance ----------
+model Transaction {
+  id          String   @id @default(cuid())
+  type        String   @default("expense") // income | expense
+  account     String   @default("Cash") // Cash / Bank / Card / etc.
+  amount      Float    @default(0)
+  description String   @default("")
+  category    String   @default("General")
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

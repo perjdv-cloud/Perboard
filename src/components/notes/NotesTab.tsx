@@ -1,0 +1,1290 @@
+"use client";
+
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  type ReactNode,
+} from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  Plus,
+  X,
+  FolderPlus,
+  Pin,
+  Trash2,
+  Type,
+  Image as ImageIcon,
+  Pencil,
+  Mic,
+  Clock,
+  Folder as FolderIcon,
+  Inbox,
+  StickyNote,
+  Loader2,
+  SortAsc,
+  Check,
+  AlertCircle,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { api, readFileAsDataURL, sortItems } from "@/lib/api";
+import {
+  NOTE_COLORS,
+  FOLDER_COLORS,
+  type Note,
+  type NoteFolder,
+  type NoteType,
+  type SortKey,
+} from "@/lib/types";
+import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+import NoteEditor, {
+  DrawingCanvas,
+  VoiceRecorder,
+  VoicePlayer,
+  NoteTypeBadge,
+  SaveIndicator,
+  useLatest,
+  type SaveState,
+} from "./NoteEditor";
+
+/* ---------------- helpers ---------------- */
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 30) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  const w = Math.floor(d / 7);
+  if (w < 5) return `${w}w ago`;
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/* ---------------- main component ---------------- */
+
+export default function NotesTab() {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [folders, setFolders] = useState<NoteFolder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeFolder, setActiveFolder] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortKey>("recent");
+
+  const [editorNote, setEditorNote] = useState<Note | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+
+  const [addFolderOpen, setAddFolderOpen] = useState(false);
+
+  const loadFolders = useCallback(async () => {
+    try {
+      const f = await api<NoteFolder[]>("/api/note-folders");
+      setFolders(f);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const loadNotes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const n = await api<Note[]>("/api/notes");
+      setNotes(n);
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Failed to load notes", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadFolders();
+    void loadNotes();
+  }, [loadFolders, loadNotes]);
+
+  const filteredNotes = useMemo(() => {
+    let arr = notes;
+    if (activeFolder === "none") {
+      arr = arr.filter((n) => n.folderId === null);
+    } else if (activeFolder !== "all") {
+      arr = arr.filter((n) => n.folderId === activeFolder);
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      arr = arr.filter(
+        (n) =>
+          n.title.toLowerCase().includes(q) ||
+          n.content.toLowerCase().includes(q)
+      );
+    }
+    const sorted = sortItems(arr, sort);
+    // Pinned first within the sorted order
+    return [
+      ...sorted.filter((n) => n.pinned),
+      ...sorted.filter((n) => !n.pinned),
+    ];
+  }, [notes, activeFolder, search, sort]);
+
+  const handleCreated = useCallback((note: Note) => {
+    setNotes((prev) => {
+      if (prev.some((n) => n.id === note.id)) {
+        return prev.map((n) => (n.id === note.id ? note : n));
+      }
+      return [note, ...prev];
+    });
+  }, []);
+
+  const handleSaved = useCallback((updated: Note) => {
+    setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+    setEditorNote((prev) => (prev?.id === updated.id ? updated : prev));
+  }, []);
+
+  const handleDeleted = useCallback((id: string) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    setEditorNote((prev) => (prev?.id === id ? null : prev));
+  }, []);
+
+  const handleTogglePin = useCallback(
+    async (note: Note) => {
+      // Optimistic update
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === note.id ? { ...n, pinned: !n.pinned } : n
+        )
+      );
+      try {
+        const updated = await api<Note>(`/api/notes/${note.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ pinned: !note.pinned }),
+        });
+        handleSaved(updated);
+      } catch {
+        // Revert
+        setNotes((prev) =>
+          prev.map((n) =>
+            n.id === note.id ? { ...n, pinned: note.pinned } : n
+          )
+        );
+        toast({ title: "Failed to update note", variant: "destructive" });
+      }
+    },
+    [handleSaved]
+  );
+
+  const handleDeleteNote = useCallback(
+    async (note: Note) => {
+      const prev = notes;
+      setNotes((arr) => arr.filter((n) => n.id !== note.id));
+      try {
+        await api(`/api/notes/${note.id}`, { method: "DELETE" });
+        toast({ title: "Note deleted" });
+      } catch {
+        setNotes(prev);
+        toast({ title: "Failed to delete note", variant: "destructive" });
+      }
+    },
+    [notes]
+  );
+
+  const handleDeleteFolder = useCallback(
+    async (id: string) => {
+      const prev = folders;
+      setFolders((arr) => arr.filter((f) => f.id !== id));
+      setNotes((arr) =>
+        arr.map((n) => (n.folderId === id ? { ...n, folderId: null } : n))
+      );
+      if (activeFolder === id) setActiveFolder("all");
+      try {
+        await api(`/api/note-folders/${id}`, { method: "DELETE" });
+        toast({
+          title: "Folder deleted",
+          description: "Notes moved to All Notes.",
+        });
+      } catch {
+        setFolders(prev);
+        toast({ title: "Failed to delete folder", variant: "destructive" });
+      }
+    },
+    [folders, activeFolder]
+  );
+
+  const handleOpenNote = useCallback((note: Note) => {
+    setEditorNote(note);
+    setEditorOpen(true);
+  }, []);
+
+  const activeFolderName =
+    activeFolder === "all"
+      ? "All notes"
+      : activeFolder === "none"
+      ? "Unsorted"
+      : folders.find((f) => f.id === activeFolder)?.name ?? "Notes";
+
+  return (
+    <div className="space-y-5">
+      {/* Top bar: search + sort */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search notes by title or content…"
+            className="h-11 rounded-full border-border/70 bg-card pl-10 pr-9 shadow-sm"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <SortAsc className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Select
+              value={sort}
+              onValueChange={(v) => setSort(v as SortKey)}
+            >
+              <SelectTrigger className="h-11 w-[150px] rounded-full border-border/70 bg-card pl-9 pr-8 shadow-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Recent</SelectItem>
+                <SelectItem value="date">Date created</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+                <SelectItem value="type">Type</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Folder tabs */}
+      <FolderTabs
+        folders={folders}
+        active={activeFolder}
+        onSelect={setActiveFolder}
+        onAdd={() => setAddFolderOpen(true)}
+        onDelete={handleDeleteFolder}
+      />
+
+      {/* Quick composer */}
+      <ComposerCard
+        folders={folders}
+        activeFolder={activeFolder}
+        onCreated={handleCreated}
+        onUpdated={handleSaved}
+      />
+
+      {/* Section heading */}
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          {activeFolderName}
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+            {filteredNotes.length}
+          </span>
+        </h2>
+      </div>
+
+      {/* Notes grid / loading / empty */}
+      {loading ? (
+        <SkeletonGrid />
+      ) : filteredNotes.length === 0 ? (
+        <EmptyState
+          hasSearch={!!search.trim()}
+          onCreate={() => {
+            // focus composer by scrolling into view; the composer expands on click
+            const el = document.getElementById("note-composer");
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }}
+        />
+      ) : (
+        <div className="columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
+          <AnimatePresence initial={false}>
+            {filteredNotes.map((note) => (
+              <NoteCard
+                key={note.id}
+                note={note}
+                folder={folders.find((f) => f.id === note.folderId)}
+                onOpen={handleOpenNote}
+                onPin={handleTogglePin}
+                onDelete={handleDeleteNote}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Editor dialog */}
+      <NoteEditor
+        note={editorNote}
+        folders={folders}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        onSaved={handleSaved}
+        onDeleted={handleDeleted}
+      />
+
+      {/* Add folder dialog */}
+      <AddFolderDialog
+        open={addFolderOpen}
+        onOpenChange={setAddFolderOpen}
+        onCreated={(f) => {
+          setFolders((prev) => [...prev, f]);
+          setActiveFolder(f.id);
+        }}
+      />
+    </div>
+  );
+}
+
+/* ---------------- folder tabs ---------------- */
+
+function FolderTabs({
+  folders,
+  active,
+  onSelect,
+  onAdd,
+  onDelete,
+}: {
+  folders: NoteFolder[];
+  active: string;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div
+      className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      style={{ scrollSnapType: "x proximity" }}
+    >
+      <FolderPill
+        active={active === "all"}
+        onClick={() => onSelect("all")}
+        icon={<StickyNote className="h-3.5 w-3.5" />}
+      >
+        All Notes
+      </FolderPill>
+      <FolderPill
+        active={active === "none"}
+        onClick={() => onSelect("none")}
+        icon={<Inbox className="h-3.5 w-3.5" />}
+      >
+        Unsorted
+      </FolderPill>
+      {folders.map((f) => (
+        <FolderPill
+          key={f.id}
+          active={active === f.id}
+          onClick={() => onSelect(f.id)}
+          color={f.color}
+          onDelete={() => onDelete(f.id)}
+        >
+          {f.name}
+        </FolderPill>
+      ))}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-border bg-background px-3.5 py-2 text-xs font-medium text-muted-foreground transition hover:border-amber-400 hover:text-amber-600"
+        style={{ scrollSnapAlign: "start" }}
+      >
+        <FolderPlus className="h-3.5 w-3.5" />
+        New folder
+      </button>
+    </div>
+  );
+}
+
+function FolderPill({
+  active,
+  onClick,
+  color,
+  icon,
+  onDelete,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  color?: string;
+  icon?: ReactNode;
+  onDelete?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={cn(
+        "group flex shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-medium transition",
+        active
+          ? "bg-amber-500 text-white shadow-sm"
+          : "border border-border bg-background text-foreground hover:bg-accent"
+      )}
+      style={{ scrollSnapAlign: "start" }}
+    >
+      {icon ?? (
+        <span
+          className="h-2 w-2 rounded-full"
+          style={{ backgroundColor: active ? "white" : color ?? "#a3a3a3" }}
+        />
+      )}
+      <span>{children}</span>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className={cn(
+            "-mr-1 ml-1 grid h-4 w-4 place-items-center rounded-full opacity-0 transition group-hover:opacity-100",
+            active ? "hover:bg-white/20" : "hover:bg-accent-foreground/10"
+          )}
+          aria-label="Delete folder"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- add folder dialog ---------------- */
+
+function AddFolderDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (folder: NoteFolder) => void;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(FOLDER_COLORS[0]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setColor(FOLDER_COLORS[Math.floor(Math.random() * FOLDER_COLORS.length)]);
+    }
+  }, [open]);
+
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      toast({ title: "Folder name is required", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const f = await api<NoteFolder>("/api/note-folders", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), color }),
+      });
+      onCreated(f);
+      toast({ title: "Folder created", description: f.name });
+      onOpenChange(false);
+    } catch {
+      toast({ title: "Failed to create folder", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>New folder</DialogTitle>
+          <DialogDescription>
+            Organize your notes with a custom folder.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Input
+            placeholder="Folder name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleSubmit();
+              }
+            }}
+            autoFocus
+          />
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              Pick a color
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {FOLDER_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={cn(
+                    "h-8 w-8 rounded-full border-2 transition",
+                    color === c
+                      ? "scale-110 border-foreground"
+                      : "border-transparent"
+                  )}
+                  style={{ backgroundColor: c }}
+                  aria-label={`Color ${c}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="bg-amber-500 text-white hover:bg-amber-600"
+          >
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            Create folder
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------------- composer ---------------- */
+
+function ComposerCard({
+  folders,
+  activeFolder,
+  onCreated,
+  onUpdated,
+}: {
+  folders: NoteFolder[];
+  activeFolder: string;
+  onCreated: (note: Note) => void;
+  onUpdated: (note: Note) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [type, setType] = useState<NoteType>("text");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [imageData, setImageData] = useState<string | null>(null);
+  const [audioData, setAudioData] = useState<string | null>(null);
+  const [color, setColor] = useState(NOTE_COLORS[0]);
+  const [folderId, setFolderId] = useState<string | null>(
+    activeFolder && activeFolder !== "all" && activeFolder !== "none"
+      ? activeFolder
+      : null
+  );
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [drawOpen, setDrawOpen] = useState(false);
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savingRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Refs holding the latest state so the save timer always reads fresh values
+  const stateRef = useLatest({
+    title,
+    content,
+    type,
+    color,
+    imageData,
+    audioData,
+    folderId,
+  });
+  const idRef = useLatest(noteId);
+  const onCreatedRef = useLatest(onCreated);
+  const onUpdatedRef = useLatest(onUpdated);
+
+  // Sync folderId with activeFolder when user switches tabs
+  useEffect(() => {
+    setFolderId(
+      activeFolder && activeFolder !== "all" && activeFolder !== "none"
+        ? activeFolder
+        : null
+    );
+  }, [activeFolder]);
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    },
+    []
+  );
+
+  const doSave = useCallback(async () => {
+    if (savingRef.current) {
+      dirtyRef.current = true;
+      return;
+    }
+    savingRef.current = true;
+    try {
+      while (true) {
+        dirtyRef.current = false;
+        const s = stateRef.current;
+        const currentId = idRef.current;
+
+        const isEmpty =
+          !s.title.trim() && !s.content.trim() && !s.imageData && !s.audioData;
+
+        if (isEmpty) {
+          if (currentId) {
+            try {
+              await api(`/api/notes/${currentId}`, { method: "DELETE" });
+              setNoteId(null);
+            } catch (err) {
+              console.error(err);
+            }
+          }
+        } else {
+          const payload = {
+            folderId: s.folderId,
+            title: s.title.trim(),
+            content: s.content,
+            type: s.type,
+            color: s.color,
+            pinned: false,
+            imageData: s.imageData,
+            audioData: s.audioData,
+          };
+          setSaveState("saving");
+          try {
+            if (!currentId) {
+              const created = await api<Note>("/api/notes", {
+                method: "POST",
+                body: JSON.stringify(payload),
+              });
+              setNoteId(created.id);
+              onCreatedRef.current(created);
+            } else {
+              const updated = await api<Note>(`/api/notes/${currentId}`, {
+                method: "PUT",
+                body: JSON.stringify(payload),
+              });
+              onUpdatedRef.current(updated);
+            }
+            setSaveState("saved");
+            setTimeout(
+              () => setSaveState((prev) => (prev === "saved" ? "idle" : prev)),
+              1500
+            );
+          } catch (err) {
+            console.error(err);
+            setSaveState("error");
+          }
+        }
+        if (!dirtyRef.current) break;
+      }
+    } finally {
+      savingRef.current = false;
+    }
+  }, []);
+
+  const doSaveRef = useLatest(doSave);
+
+  const scheduleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      void doSaveRef.current();
+    }, 700);
+  }, []);
+
+  const reset = () => {
+    setType("text");
+    setTitle("");
+    setContent("");
+    setImageData(null);
+    setAudioData(null);
+    setColor(NOTE_COLORS[0]);
+    setNoteId(null);
+    setExpanded(false);
+    setSaveState("idle");
+  };
+
+  const handleDone = async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    await doSaveRef.current();
+    reset();
+  };
+
+  const handleCancel = async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    await doSaveRef.current();
+    reset();
+  };
+
+  const activeTypeBtn = (t: NoteType) => type === t;
+
+  return (
+    <div
+      id="note-composer"
+      className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+      style={{ borderLeftColor: color, borderLeftWidth: 4 }}
+    >
+      {!expanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex w-full items-center gap-3 text-left text-sm text-muted-foreground"
+        >
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+            <Plus className="h-4 w-4" />
+          </span>
+          <span>Take a note…</span>
+        </button>
+      ) : (
+        <div className="space-y-3">
+          {/* Title */}
+          <input
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              scheduleSave();
+            }}
+            placeholder="Title"
+            className="w-full bg-transparent text-base font-semibold outline-none placeholder:text-muted-foreground"
+            autoFocus
+          />
+
+          {/* Type-specific content */}
+          {type === "text" && (
+            <textarea
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                scheduleSave();
+              }}
+              placeholder="Start writing…"
+              className="min-h-[100px] w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          )}
+
+          {type === "image" && (
+            <div className="space-y-2">
+              {imageData ? (
+                <div className="relative">
+                  <img
+                    src={imageData}
+                    alt=""
+                    className="max-h-64 w-full rounded-md border border-border object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition hover:opacity-100">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      Replace
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setImageData(null);
+                        scheduleSave();
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex h-28 w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border text-sm text-muted-foreground transition hover:border-amber-400 hover:bg-amber-50/50 hover:text-amber-700"
+                >
+                  <ImageIcon className="h-5 w-5" />
+                  <span>Click to upload image</span>
+                </button>
+              )}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    const d = await readFileAsDataURL(f);
+                    setImageData(d);
+                    setType("image");
+                    scheduleSave();
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <input
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  scheduleSave();
+                }}
+                placeholder="Add a caption…"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          )}
+
+          {type === "draw" && (
+            <div className="space-y-2">
+              {imageData ? (
+                <img
+                  src={imageData}
+                  alt=""
+                  className="w-full rounded-md border border-border"
+                />
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDrawOpen(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                {imageData ? "Edit drawing" : "Open canvas"}
+              </Button>
+              <input
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  scheduleSave();
+                }}
+                placeholder="Add a caption…"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          )}
+
+          {type === "voice" && (
+            <div className="space-y-2">
+              {audioData && <VoicePlayer src={audioData} />}
+              <VoiceRecorder
+                onComplete={(d) => {
+                  setAudioData(d);
+                  scheduleSave();
+                }}
+              />
+              <input
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  scheduleSave();
+                }}
+                placeholder="Transcript or note…"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          )}
+
+          {/* Color picker */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {NOTE_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  setColor(c);
+                  scheduleSave();
+                }}
+                className={cn(
+                  "h-5 w-5 rounded-full border-2 transition",
+                  color === c
+                    ? "scale-110 border-foreground"
+                    : "border-transparent"
+                )}
+                style={{ backgroundColor: c }}
+                aria-label={`Color ${c}`}
+              />
+            ))}
+          </div>
+
+          {/* Folder selector + actions */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex items-center gap-1">
+              <ComposerTypeButton
+                active={activeTypeBtn("text")}
+                onClick={() => {
+                  setType("text");
+                  scheduleSave();
+                }}
+                icon={Type}
+                label="Text"
+              />
+              <ComposerTypeButton
+                active={activeTypeBtn("image")}
+                onClick={() => {
+                  setType("image");
+                  scheduleSave();
+                }}
+                icon={ImageIcon}
+                label="Image"
+              />
+              <ComposerTypeButton
+                active={activeTypeBtn("draw")}
+                onClick={() => setDrawOpen(true)}
+                icon={Pencil}
+                label="Draw"
+              />
+              <ComposerTypeButton
+                active={activeTypeBtn("voice")}
+                onClick={() => {
+                  setType("voice");
+                  scheduleSave();
+                }}
+                icon={Mic}
+                label="Voice"
+              />
+            </div>
+
+            <Select
+              value={folderId ?? "__none"}
+              onValueChange={(v) => {
+                setFolderId(v === "__none" ? null : v);
+                scheduleSave();
+              }}
+            >
+              <SelectTrigger className="h-8 w-[140px]" size="sm">
+                <SelectValue placeholder="Folder" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">No folder</SelectItem>
+                {folders.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: f.color }}
+                      />
+                      {f.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-2">
+              <SaveIndicator state={saveState} />
+              <Button size="sm" variant="ghost" onClick={handleCancel}>
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleDone}
+                className="bg-amber-500 text-white hover:bg-amber-600"
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drawing canvas dialog */}
+      <Dialog open={drawOpen} onOpenChange={setDrawOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Sketch a drawing</DialogTitle>
+            <DialogDescription>
+              Draw with your finger or mouse. Save to attach to the note.
+            </DialogDescription>
+          </DialogHeader>
+          <DrawingCanvas
+            key="composer"
+            initialDataUrl={imageData}
+            height={320}
+            onSave={(d) => {
+              setImageData(d);
+              setType("draw");
+              setDrawOpen(false);
+              scheduleSave();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ComposerTypeButton({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: typeof Type;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "grid h-9 w-9 place-items-center rounded-full transition",
+        active
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      )}
+      title={label}
+      aria-label={label}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+/* ---------------- note card ---------------- */
+
+function NoteCard({
+  note,
+  folder,
+  onOpen,
+  onPin,
+  onDelete,
+}: {
+  note: Note;
+  folder?: NoteFolder;
+  onOpen: (note: Note) => void;
+  onPin: (note: Note) => void;
+  onDelete: (note: Note) => void;
+}) {
+  const hasMedia =
+    (note.type === "image" || note.type === "draw") && note.imageData;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.18 }}
+      className="mb-4 break-inside-avoid"
+    >
+      <div
+        onClick={() => onOpen(note)}
+        className="group relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+        style={{ borderTopColor: note.color, borderTopWidth: 3 }}
+      >
+        {/* Hover actions */}
+        <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPin(note);
+            }}
+            className="grid h-7 w-7 place-items-center rounded-full bg-background/80 backdrop-blur transition hover:bg-accent"
+            aria-label={note.pinned ? "Unpin" : "Pin"}
+          >
+            <Pin
+              className={cn(
+                "h-3.5 w-3.5",
+                note.pinned
+                  ? "fill-amber-500 text-amber-500"
+                  : "text-muted-foreground"
+              )}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(note);
+            }}
+            className="grid h-7 w-7 place-items-center rounded-full bg-background/80 text-muted-foreground backdrop-blur transition hover:bg-destructive hover:text-white"
+            aria-label="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Pinned indicator (always visible if pinned) */}
+        {note.pinned && (
+          <div className="absolute left-2 top-2">
+            <Pin className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+          </div>
+        )}
+
+        <div className={cn("space-y-1.5", note.pinned && "pl-5")}>
+          {/* Type + folder */}
+          <div className="flex items-center gap-1.5 pr-12">
+            <NoteTypeBadge type={note.type} />
+            {folder && (
+              <span className="inline-flex min-w-0 items-center truncate text-[10px] text-muted-foreground">
+                <FolderIcon className="mr-0.5 h-2.5 w-2.5 shrink-0" />
+                <span className="truncate">{folder.name}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Image / draw thumbnail */}
+          {hasMedia && (
+            <img
+              src={note.imageData!}
+              alt=""
+              className="-mx-1 mb-1 max-h-56 w-[calc(100%+0.5rem)] rounded-md object-cover"
+            />
+          )}
+
+          {/* Voice preview */}
+          {note.type === "voice" && note.audioData && (
+            <div className="mb-1 flex items-center gap-2 rounded-md bg-rose-50/70 px-2 py-1.5 dark:bg-rose-950/20">
+              <Mic className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+              <div className="flex h-4 flex-1 items-center gap-0.5">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-0.5 shrink-0 rounded-full bg-rose-400"
+                    style={{
+                      height: `${4 + Math.abs(Math.sin(i * 1.7)) * 10}px`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="shrink-0 text-[10px] text-muted-foreground">
+                Voice
+              </span>
+            </div>
+          )}
+
+          {/* Title */}
+          {note.title && (
+            <h3 className="line-clamp-2 pr-6 text-sm font-semibold leading-tight">
+              {note.title}
+            </h3>
+          )}
+
+          {/* Content */}
+          {note.content && (
+            <p className="line-clamp-[10] whitespace-pre-wrap break-words text-xs text-muted-foreground">
+              {note.content}
+            </p>
+          )}
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-1 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="h-2.5 w-2.5" />
+              {timeAgo(note.updatedAt)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ---------------- skeleton & empty state ---------------- */
+
+function SkeletonGrid() {
+  return (
+    <div className="columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="mb-4 break-inside-avoid">
+          <Skeleton
+            className="rounded-xl border border-border/60"
+            style={{ height: `${120 + (i % 4) * 50}px` }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({
+  hasSearch,
+  onCreate,
+}: {
+  hasSearch: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="grid place-items-center rounded-2xl border border-dashed border-border/70 bg-card/50 px-6 py-14 text-center">
+      <div className="grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+        <StickyNote className="h-7 w-7" />
+      </div>
+      <h3 className="mt-4 text-base font-semibold">
+        {hasSearch ? "No matching notes" : "No notes yet"}
+      </h3>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        {hasSearch
+          ? "Try a different search term or clear the search to see all notes."
+          : "Capture a thought, sketch an idea, or record a voice note — it saves automatically."}
+      </p>
+      {!hasSearch && (
+        <Button
+          onClick={onCreate}
+          className="mt-4 bg-amber-500 text-white hover:bg-amber-600"
+        >
+          <Plus className="h-4 w-4" />
+          Take a note
+        </Button>
+      )}
+    </div>
+  );
+}
