@@ -840,7 +840,11 @@ export default function NoteEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-2xl"
+      >
+        <DialogTitle className="sr-only">Edit note</DialogTitle>
         {/* Color stripe */}
         <div className="h-1.5 w-full" style={{ backgroundColor: draft.color }} />
         <div className="flex max-h-[calc(92vh-1.5rem)] flex-col">

@@ -37,24 +37,24 @@ export default function Home() {
           </div>
           {/* Tabs */}
           <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 rounded-b-none bg-transparent p-0">
+            <TabsList className="grid h-10 w-full grid-cols-3 rounded-lg bg-muted p-1">
               <TabsTrigger
                 value="notes"
-                className="flex items-center gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none py-2.5 text-sm"
+                className="flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
               >
                 <StickyNote className="h-4 w-4" />
                 <span className="hidden sm:inline">Notes</span>
               </TabsTrigger>
               <TabsTrigger
                 value="files"
-                className="flex items-center gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-rose-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none py-2.5 text-sm"
+                className="flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
               >
                 <FolderOpen className="h-4 w-4" />
                 <span className="hidden sm:inline">Files</span>
               </TabsTrigger>
               <TabsTrigger
                 value="finance"
-                className="flex items-center gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none py-2.5 text-sm"
+                className="flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
               >
                 <Wallet className="h-4 w-4" />
                 <span className="hidden sm:inline">Finance</span>

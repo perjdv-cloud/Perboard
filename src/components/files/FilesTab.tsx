@@ -803,23 +803,24 @@ function FileCard({
       transition={{ duration: 0.18 }}
       className="group relative flex flex-col overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
-      <button
-        type="button"
-        onClick={onOpen}
-        className="relative block aspect-square w-full overflow-hidden bg-muted/50 text-left"
-        aria-label={`Open ${file.name}`}
-      >
+      <div className="relative block aspect-square w-full overflow-hidden bg-muted/50">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="absolute inset-0 h-full w-full text-left"
+          aria-label={`Open ${file.name}`}
+        />
         {file.type === "image" ? (
           <img
             src={file.data}
             alt={file.name}
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="pointer-events-none h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div
             className={cn(
-              "flex h-full w-full flex-col items-center justify-center gap-2",
+              "pointer-events-none flex h-full w-full flex-col items-center justify-center gap-2",
               file.type === "pdf" &&
                 "bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/40 dark:to-amber-900/20",
               file.type === "excel" &&
@@ -842,7 +843,7 @@ function FileCard({
           </div>
         )}
 
-        {/* Hover overlay actions */}
+        {/* Hover overlay actions (siblings, not nested in the open button) */}
         <div className="pointer-events-none absolute inset-0 flex items-start justify-end gap-1 bg-gradient-to-b from-black/30 via-transparent to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
           <a
             href={file.data}
@@ -872,7 +873,7 @@ function FileCard({
             )}
           </button>
         </div>
-      </button>
+      </div>
 
       {/* Meta */}
       <div className="flex flex-col gap-1 p-2.5">

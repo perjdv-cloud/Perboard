@@ -78,7 +78,9 @@ export default function FileViewer({
   if (!file) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg" />
+        <DialogContent aria-describedby={undefined} className="sm:max-w-lg">
+          <DialogTitle className="sr-only">File viewer</DialogTitle>
+        </DialogContent>
       </Dialog>
     );
   }

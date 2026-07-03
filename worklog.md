@@ -253,3 +253,21 @@ Stage Summary:
 - Swipe-to-change-folder now lives on the notes content area (heading + grid) instead of the folder names row
 - Folder pills row is back to plain click/scroll
 - Prev/Next chevron buttons in the heading provide an accessible, discoverable alternative to swiping
+
+---
+Task ID: 11
+Agent: Orchestrator
+Task: Fix DialogTitle console error + simplify active tab highlight style
+
+Work Log:
+- Fixed "DialogContent requires a DialogTitle" accessibility error:
+  - NoteEditor main dialog (src/components/notes/NoteEditor.tsx): added `<DialogTitle className="sr-only">Edit note</DialogTitle>` + `aria-describedby={undefined}` — the editor has a custom top bar with no visible title, so the title is visually hidden but present for screen readers
+  - FileViewer empty-state dialog (src/components/files/FileViewer.tsx, the `!file` branch): replaced the self-closing `<DialogContent />` with one containing `<DialogTitle className="sr-only">File viewer</DialogTitle>` + `aria-describedby={undefined}`
+- Fixed a separate "button cannot contain a nested button" React error in FilesTab FileCard: the delete/download hover buttons were nested inside the open `<button>`. Restructured the thumbnail area so the open button is an `absolute inset-0` sibling (not a parent) of the image/content and the hover overlay actions; added `pointer-events-none` to the image/content so clicks fall through to the open button
+- Simplified the active tab highlight style (src/app/page.tsx): replaced the per-tab colored bottom borders (amber/rose/emerald) with a clean segmented control — TabsList is a rounded `bg-muted` container with `p-1`, and the active TabsTrigger gets `bg-background` + `text-foreground` + a subtle shadow; inactive tabs are muted. All three tabs now share one consistent, simple style.
+- Verified via Agent Browser: opening the NoteEditor dialog → no console errors; switching to Files tab (8 files render) → no console errors; opening a file in FileViewer → no console errors, DialogTitle shows the file name; tab bar renders as a simple segmented control
+- `bun run lint` clean
+
+Stage Summary:
+- Console is now clean: DialogTitle accessibility errors gone (NoteEditor + FileViewer), nested-button error gone (FileCard)
+- Tab navigation uses a simple, consistent segmented-control highlight (active = white background card, inactive = muted) instead of colored bottom borders
