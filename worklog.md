@@ -271,3 +271,32 @@ Work Log:
 Stage Summary:
 - Console is now clean: DialogTitle accessibility errors gone (NoteEditor + FileViewer), nested-button error gone (FileCard)
 - Tab navigation uses a simple, consistent segmented-control highlight (active = white background card, inactive = muted) instead of colored bottom borders
+
+---
+Task ID: 12
+Agent: Orchestrator
+Task: Mobile view — show 3 columns for notes + make note cards compact and stylish
+
+Work Log:
+- Changed the notes grid from `columns-2` (mobile) to `columns-3` on mobile (gap-2), keeping the responsive scale: 3 / sm:3 / md:5 / lg:7 / xl:9 / 2xl:11
+- Updated the SkeletonGrid to match the new column + gap layout and reduced skeleton heights (96–180px) for a more compact feel
+- Redesigned NoteCard for a compact, stylish look:
+  - Color accent moved from a thick top border (3px) to a slim full-width top stripe (h-1)
+  - Reduced padding: p-3.5 → p-2 (mobile) / p-2.5 (sm+)
+  - Tighter card radius: rounded-xl → rounded-lg
+  - Smaller hover action buttons: h-7 w-7 → h-6 w-6 with h-3 icons (vs h-3.5)
+  - Moved type badge + folder + time into a single compact footer row (was a separate header row + footer), shrinking vertical footprint
+  - Title: text-sm → text-xs (mobile) / text-sm (sm+), pr-5 to avoid overlapping hover actions
+  - Content: text-xs → text-[11px] (mobile) / text-xs (sm+), line-clamp-4 (was 10)
+  - Image thumbnails: max-h-56 → max-h-40 (mobile) / max-h-52 (sm+)
+  - Voice preview: shorter waveform (14 → 10 bars), tighter padding
+  - Card bottom margin: mb-4 → mb-2 (mobile) / mb-3 (sm+)
+- Verified via Agent Browser + VLM at mobile 390×844: 3 columns confirmed (cardWidth 114px / container 358px → 3 cols), VLM reports "3 columns visible, cards compact and stylish, uniform design, clear text, icons, no layout issues"
+- Desktop still scales up correctly (md:5 / lg:7 / xl:9 / 2xl:11)
+- No console/runtime errors; clicking a card still opens the editor
+- `bun run lint` clean
+
+Stage Summary:
+- Mobile notes now display in 3 columns (was 2)
+- Note cards are compact and stylish: slim color stripe, tighter padding/spacing, smaller action buttons, consolidated footer, responsive typography
+- All breakpoints and interactions preserved

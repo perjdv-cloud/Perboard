@@ -408,7 +408,7 @@ export default function NotesTab() {
             onCreate={() => setComposerOpen(true)}
           />
         ) : (
-          <div className="mt-3 columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
+          <div className="mt-3 columns-3 gap-2 sm:columns-3 sm:gap-3 md:columns-5 md:gap-3 lg:columns-7 xl:columns-9 2xl:columns-11">
             <AnimatePresence initial={false}>
               {filteredNotes.map((note) => (
                 <NoteCard
@@ -1184,31 +1184,36 @@ function NoteCard({
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.18 }}
-      className="mb-4 break-inside-avoid"
+      transition={{ duration: 0.16 }}
+      className="mb-2 break-inside-avoid sm:mb-3"
     >
       <div
         onClick={() => onOpen(note)}
-        className="group relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-        style={{ borderTopColor: note.color, borderTopWidth: 3 }}
+        className="group relative cursor-pointer overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-md"
       >
+        {/* Color accent stripe */}
+        <div
+          className="h-1 w-full"
+          style={{ backgroundColor: note.color }}
+        />
+
         {/* Hover actions */}
-        <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+        <div className="absolute right-1.5 top-2 flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onPin(note);
             }}
-            className="grid h-7 w-7 place-items-center rounded-full bg-background/80 backdrop-blur transition hover:bg-accent"
+            className="grid h-6 w-6 place-items-center rounded-full bg-background/90 text-muted-foreground shadow-sm backdrop-blur transition hover:bg-accent hover:text-foreground"
             aria-label={note.pinned ? "Unpin" : "Pin"}
           >
             <Pin
               className={cn(
-                "h-3.5 w-3.5",
+                "h-3 w-3",
                 note.pinned
                   ? "fill-amber-500 text-amber-500"
-                  : "text-muted-foreground"
+                  : ""
               )}
             />
           </button>
@@ -1218,79 +1223,72 @@ function NoteCard({
               e.stopPropagation();
               onDelete(note);
             }}
-            className="grid h-7 w-7 place-items-center rounded-full bg-background/80 text-muted-foreground backdrop-blur transition hover:bg-destructive hover:text-white"
+            className="grid h-6 w-6 place-items-center rounded-full bg-background/90 text-muted-foreground shadow-sm backdrop-blur transition hover:bg-destructive hover:text-white"
             aria-label="Delete"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3 w-3" />
           </button>
         </div>
 
         {/* Pinned indicator (always visible if pinned) */}
         {note.pinned && (
-          <div className="absolute left-2 top-2">
-            <Pin className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+          <div className="absolute left-1.5 top-2 z-10">
+            <Pin className="h-3 w-3 fill-amber-500 text-amber-500 drop-shadow-sm" />
           </div>
         )}
 
-        <div className={cn("space-y-1.5", note.pinned && "pl-5")}>
-          {/* Type + folder */}
-          <div className="flex items-center gap-1.5 pr-12">
-            <NoteTypeBadge type={note.type} />
-            {folder && (
-              <span className="inline-flex min-w-0 items-center truncate text-[10px] text-muted-foreground">
-                <FolderIcon className="mr-0.5 h-2.5 w-2.5 shrink-0" />
-                <span className="truncate">{folder.name}</span>
-              </span>
-            )}
-          </div>
-
+        <div className={cn("p-2 sm:p-2.5", note.pinned && "pl-5")}>
           {/* Image / draw thumbnail */}
           {hasMedia && (
             <img
               src={note.imageData!}
               alt=""
-              className="-mx-1 mb-1 max-h-56 w-[calc(100%+0.5rem)] rounded-md object-cover"
+              className="-m-0.5 mb-1.5 max-h-40 w-[calc(100%+0.25rem)] rounded-md object-cover sm:max-h-52"
             />
           )}
 
           {/* Voice preview */}
           {note.type === "voice" && note.audioData && (
-            <div className="mb-1 flex items-center gap-2 rounded-md bg-rose-50/70 px-2 py-1.5 dark:bg-rose-950/20">
-              <Mic className="h-3.5 w-3.5 shrink-0 text-rose-500" />
-              <div className="flex h-4 flex-1 items-center gap-0.5">
-                {Array.from({ length: 14 }).map((_, i) => (
+            <div className="mb-1.5 flex items-center gap-1.5 rounded-md bg-rose-50/70 px-1.5 py-1 dark:bg-rose-950/20">
+              <Mic className="h-3 w-3 shrink-0 text-rose-500" />
+              <div className="flex h-3 flex-1 items-center gap-0.5">
+                {Array.from({ length: 10 }).map((_, i) => (
                   <div
                     key={i}
                     className="w-0.5 shrink-0 rounded-full bg-rose-400"
                     style={{
-                      height: `${4 + Math.abs(Math.sin(i * 1.7)) * 10}px`,
+                      height: `${3 + Math.abs(Math.sin(i * 1.7)) * 7}px`,
                     }}
                   />
                 ))}
               </div>
-              <span className="shrink-0 text-[10px] text-muted-foreground">
-                Voice
-              </span>
             </div>
           )}
 
           {/* Title */}
           {note.title && (
-            <h3 className="line-clamp-2 pr-6 text-sm font-semibold leading-tight">
+            <h3 className="line-clamp-2 pr-5 text-xs font-semibold leading-tight sm:text-sm">
               {note.title}
             </h3>
           )}
 
           {/* Content */}
           {note.content && (
-            <p className="line-clamp-[10] whitespace-pre-wrap break-words text-xs text-muted-foreground">
+            <p className="mt-0.5 line-clamp-4 whitespace-pre-wrap break-words text-[11px] leading-snug text-muted-foreground sm:text-xs">
               {note.content}
             </p>
           )}
 
-          {/* Footer */}
-          <div className="flex items-center justify-between pt-1 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
+          {/* Footer: type badge + folder + time */}
+          <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-muted-foreground sm:text-[10px]">
+            <NoteTypeBadge type={note.type} />
+            {folder && (
+              <span className="inline-flex min-w-0 items-center">
+                <FolderIcon className="mr-0.5 h-2.5 w-2.5 shrink-0" />
+                <span className="truncate">{folder.name}</span>
+              </span>
+            )}
+            <span className="ml-auto flex items-center gap-0.5">
               <Clock className="h-2.5 w-2.5" />
               {timeAgo(note.updatedAt)}
             </span>
@@ -1305,12 +1303,12 @@ function NoteCard({
 
 function SkeletonGrid() {
   return (
-    <div className="columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
+    <div className="columns-3 gap-2 sm:columns-3 sm:gap-3 md:columns-5 md:gap-3 lg:columns-7 xl:columns-9 2xl:columns-11">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="mb-4 break-inside-avoid">
+        <div key={i} className="mb-2 break-inside-avoid sm:mb-3">
           <Skeleton
-            className="rounded-xl border border-border/60"
-            style={{ height: `${120 + (i % 4) * 50}px` }}
+            className="rounded-lg border border-border/50"
+            style={{ height: `${96 + (i % 4) * 28}px` }}
           />
         </div>
       ))}
