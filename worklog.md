@@ -385,3 +385,22 @@ Stage Summary:
 - Active folder pill now highlights in light blue (sky-500)
 - Smart folders auto-organize files by type: Images, PDFs, Sheets, Docs — with live counts, type-filtered grids, and proper headings/empty states
 - Smart folders are part of the swipe order, so swiping/dragging the file content area cycles through All → smart folders → user folders
+
+---
+Task ID: 17
+Agent: Orchestrator
+Task: Files — remove Images/PDFs/Sheets/Docs smart folder pills from the tab
+
+Work Log:
+- Removed the SMART_FOLDERS.map(...) block from the folder pills row — the Images/PDFs/Sheets/Docs pills no longer render
+- Updated folderOrder (swipe order) to ["all", ...user folder ids] — smart folders removed from the swipe cycle
+- Reverted the section heading to show "All files" / user folder name (removed the smart-folder label branch)
+- Reverted the empty-state message to "No files yet" / "Nothing in <folder>" (removed the smart-folder branch)
+- Kept the SMART_FOLDERS constant + isSmartFolder guard in fetchFiles/sortedFiles as harmless defensive code (no UI references them now)
+- Verified via Agent Browser at mobile 390×844: folder pills now show only "All Files 8" + user folders (Gear, Hyuyu, Kkkkk) + New folder; swipe Next goes All files → Gear, Previous returns to All files; no console/runtime errors
+- `bun run lint` clean
+
+Stage Summary:
+- The Images/PDFs/Sheets/Docs smart folder pills are removed from the Files tab
+- Folder pills row is back to: All Files + user folders + New folder
+- Swipe order cycles through All → user folders only

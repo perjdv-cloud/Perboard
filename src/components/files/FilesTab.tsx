@@ -411,9 +411,9 @@ export default function FilesTab() {
     [activeFolder, folders]
   );
 
-  // Ordered folder ids for swiping: All → Smart folders → User folders
+  // Ordered folder ids for swiping: All → User folders
   const folderOrder = useMemo(
-    () => ["all", ...SMART_FOLDERS.map((s) => s.id), ...folders.map((f) => f.id)],
+    () => ["all", ...folders.map((f) => f.id)],
     [folders]
   );
   const folderIndex = folderOrder.indexOf(activeFolder);
@@ -524,21 +524,6 @@ export default function FilesTab() {
           count={files.length}
           accent="#38bdf8"
         />
-        {/* Smart (auto) folders — group by file type */}
-        {SMART_FOLDERS.map((s) => {
-          const SmartIcon = s.icon;
-          return (
-            <FolderPill
-              key={s.id}
-              active={activeFolder === s.id}
-              onClick={() => setActiveFolder(s.id)}
-              label={s.label}
-              icon={<SmartIcon className="h-4 w-4" />}
-              count={files.filter((f) => f.type === s.type).length}
-              accent={s.accent}
-            />
-          );
-        })}
         {loadingFolders
           ? Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-9 w-28 shrink-0 rounded-full" />
@@ -588,8 +573,6 @@ export default function FilesTab() {
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             {activeFolder === "all"
               ? "All files"
-              : isSmartFolder(activeFolder)
-              ? SMART_FOLDERS.find((s) => s.id === activeFolder)?.label ?? "Files"
               : activeFolderObj?.name ?? "Files"}
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
               {sortedFiles.length}
@@ -677,8 +660,6 @@ export default function FilesTab() {
               <p className="text-base font-semibold">
                 {activeFolder === "all"
                   ? "No files yet"
-                  : isSmartFolder(activeFolder)
-                  ? `No ${SMART_FOLDERS.find((s) => s.id === activeFolder)?.label ?? "files"} yet`
                   : `Nothing in "${activeFolderObj?.name ?? "this folder"}"`}
               </p>
               <p className="mx-auto max-w-sm text-sm text-muted-foreground">
