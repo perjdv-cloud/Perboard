@@ -1,14 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2, Check } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Check, Plus, Trash2, ChevronDown, Search } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -30,8 +23,10 @@ interface Props {
 }
 
 /**
- * A Select dropdown paired with a "+" button that opens a popover
- * for adding new options and deleting existing ones.
+ * A select-style dropdown whose trigger shows the current value text.
+ * The dropdown itself contains: the list of options (click to select,
+ * each with a delete trash button) + an inline "Add new" row at the bottom.
+ * Add and delete happen inside the dropdown — no separate popover.
  */
 export default function ManageableSelect({
   value,
@@ -47,46 +42,102 @@ export default function ManageableSelect({
   const [newName, setNewName] = React.useState("");
 
   const handleAdd = () => {
-    const ok = onAdd(newName);
+    const n = newName.trim();
+    if (!n) return;
+    const ok = onAdd(n);
     if (ok) {
-      onValueChange(newName.trim());
+      onValueChange(n);
       setNewName("");
     }
   };
 
-  return (
-    <div className={cn("flex w-full items-center gap-1", className)}>
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger size="sm" className="h-9 min-w-0 flex-1">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {items.map((item) => (
-            <SelectItem key={item} value={item}>
-              {renderItem ? renderItem(item) : item}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+  const handleDelete = (item: string) => {
+    onDelete(item);
+    if (value === item && items.length > 1) {
+      const fallback = items.find((x) => x !== item);
+      if (fallback) onValueChange(fallback);
+    }
+  };
 
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            aria-label={`Manage ${placeholder ?? "options"}`}
-            title={`Add / delete ${placeholder ?? "options"}`}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="end">
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">
-            Manage {placeholder ?? "options"}
-          </p>
-          <div className="flex items-center gap-1.5">
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          className={cn(
+            "flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm ring-offset-background transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 data-[placeholder]:text-muted-foreground",
+            className
+          )}
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            {value && renderItem ? renderItem(value) : null}
+            <span className={cn("truncate", !value && "text-muted-foreground")}>
+              {value || placeholder || "Select…"}
+            </span>
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180"
+            )}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] min-w-[10rem] p-0"
+        align="start"
+      >
+        <div className="max-h-60 overflow-y-auto p-1">
+          {items.length === 0 && (
+            <p className="py-3 text-center text-xs text-muted-foreground">
+              Nothing yet — add one below
+            </p>
+          )}
+          {items.map((item) => {
+            const selected = item === value;
+            return (
+              <div
+                key={item}
+                className="group flex items-center gap-1 rounded-sm px-1"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    onValueChange(item);
+                    setOpen(false);
+                  }}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent focus:bg-accent"
+                >
+                  {renderItem ? renderItem(item) : null}
+                  <span className="truncate">{item}</span>
+                </button>
+                <div className="flex shrink-0 items-center">
+                  {selected && (
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(item);
+                    }}
+                    className="grid h-6 w-6 place-items-center rounded text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 focus:opacity-100"
+                    aria-label={`Delete ${item}`}
+                    title={`Delete ${item}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Add new — inside the dropdown */}
+        <div className="border-t border-border p-1.5">
+          <div className="flex items-center gap-1">
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -96,7 +147,7 @@ export default function ManageableSelect({
                   handleAdd();
                 }
               }}
-              placeholder="Add new…"
+              placeholder={`Add ${placeholder ?? "new"}…`}
               className="h-8 text-sm"
             />
             <Button
@@ -105,46 +156,13 @@ export default function ManageableSelect({
               className="h-8 w-8 shrink-0"
               onClick={handleAdd}
               disabled={!newName.trim()}
-              aria-label="Add"
+              aria-label={`Add ${placeholder ?? "item"}`}
             >
-              <Check className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-2 max-h-48 space-y-0.5 overflow-y-auto">
-            {items.length === 0 && (
-              <p className="py-2 text-center text-xs text-muted-foreground">
-                Nothing yet
-              </p>
-            )}
-            {items.map((item) => (
-              <div
-                key={item}
-                className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent"
-              >
-                <span className="flex min-w-0 items-center gap-1.5 truncate">
-                  {renderItem ? renderItem(item) : null}
-                  <span className="truncate">{item}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDelete(item);
-                    if (value === item && items.length > 1) {
-                      const fallback = items.find((x) => x !== item);
-                      if (fallback) onValueChange(fallback);
-                    }
-                  }}
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                  aria-label={`Delete ${item}`}
-                  title={`Delete ${item}`}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

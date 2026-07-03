@@ -471,3 +471,29 @@ Work Log:
 Stage Summary:
 - Accounts and categories are now user-manageable: add custom ones via the "+" popover next to each select, delete via the trash button. Persisted to localStorage and synced across the inline entry + edit dialog.
 - Up to 2 receipt images can be attached per transaction (both inline and in the edit dialog), with thumbnails shown on income cards.
+
+---
+Task ID: 21
+Agent: Orchestrator
+Task: Finance — show account/category as text trigger + add/delete inside the dropdown
+
+Work Log:
+- Rewrote ManageableSelect (src/components/finance/ManageableSelect.tsx):
+  - Trigger is now a select-style button showing the CURRENT VALUE TEXT (e.g. "Cash", "Food") + a chevron, instead of a Select + separate "+" icon button. Removed the Popover+Input+Button trigger row entirely.
+  - Replaced the Radix Select with a single Popover that stays open while interacting (Radix Select auto-closes on pick, which would prevent in-dropdown add/delete).
+  - Dropdown content: scrollable list of options — each row is a clickable button (selects + closes) with a check icon on the selected one and a trash delete button (visible on hover/focus). Below the list, a bordered "Add new" footer with a text input + Plus button (Enter to confirm). Add + delete both happen INSIDE the dropdown — no separate popover.
+  - Deleting the currently-selected item falls back to the first remaining option.
+  - Width matches the trigger via --radix-popover-trigger-width.
+  - Fixed a11y: removed role="combobox" (which required aria-controls); uses aria-expanded + aria-haspopup="listbox" instead.
+- Verified via Agent Browser:
+  - Inline entry: Account trigger shows "Cash" (text), Category shows "Food" (text) — no "+" buttons beside them
+  - Open Account dropdown → list shows Cash/Bank/Card/UPI/Other each with a Delete button, plus "Add Account…" input at the bottom
+  - Typed "Wallet" + clicked Add Account → Wallet added, trigger now shows "Wallet" (auto-selected), dropdown stayed open, "Delete Wallet" appeared in list
+  - Clicked "Delete Wallet" → removed from list; trigger fell back to "Cash"
+  - Edit dialog: Account trigger shows "Bank" (text), Category shows "Food" (text)
+  - No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- Account & Category dropdowns now show the selected value as text in the trigger (like a normal select)
+- Add and delete happen inside the dropdown itself: list items each have a trash button, and an "Add new" input+button row sits at the bottom of the dropdown
+- No more separate "+" manage popover
