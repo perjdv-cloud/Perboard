@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "framer-motion";
 import {
   TrendingUp,
   TrendingDown,
@@ -97,6 +98,13 @@ function todayDateInput(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/** Very short date: e.g. "3 Jul" */
+function formatDateShort(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
 export default function FinanceTab() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -125,6 +133,9 @@ export default function FinanceTab() {
   // Income section state
   const [accountTab, setAccountTab] = React.useState<string>("All");
   const [sort, setSort] = React.useState<SortKey>("recent");
+
+  // Top-level view tab: "income" | "expense" (swipable)
+  const [viewTab, setViewTab] = React.useState<"income" | "expense">("income");
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -499,18 +510,43 @@ export default function FinanceTab() {
         </CardContent>
       </Card>
 
-      {/* ---------- Income + Expense side-by-side (2 cols each) ---------- */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-        {/* ===== Income (2 cols, with account tabs) ===== */}
-        <section className="space-y-2 lg:col-span-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-              <h2 className="text-sm font-semibold">Income</h2>
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
-                {displayedIncomes.length}
-              </Badge>
-            </div>
+      {/* ---------- Top-level Income / Expense tabs (swipable) ---------- */}
+      <div className="space-y-2">
+        {/* Tab bar */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewTab("income")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition",
+                viewTab === "income"
+                  ? "bg-background text-emerald-700 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <TrendingUp className="h-3.5 w-3.5" /> Income
+              <span className="rounded-full bg-emerald-100 px-1.5 text-[10px] text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                {incomes.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewTab("expense")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition",
+                viewTab === "expense"
+                  ? "bg-background text-rose-700 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <TrendingDown className="h-3.5 w-3.5" /> Expense
+              <span className="rounded-full bg-rose-100 px-1.5 text-[10px] text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                {expenses.length}
+              </span>
+            </button>
+          </div>
+          {viewTab === "income" && (
             <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
               <SelectTrigger size="sm" className="h-7 w-24 text-xs">
                 <SelectValue />
@@ -522,93 +558,125 @@ export default function FinanceTab() {
                 <SelectItem value="type">Type</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          )}
+        </div>
 
-          {/* Account tabs (swipable) */}
-          <div
-            className="flex gap-1.5 overflow-x-auto pb-0.5 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            role="tablist"
-            aria-label="Income accounts"
-          >
-            <AccountTab
-              label="All"
-              active={accountTab === "All"}
-              onClick={() => setAccountTab("All")}
-              count={incomes.length}
-            />
-            {incomeAccounts.map((a) => (
-              <AccountTab
-                key={a}
-                label={a}
-                active={accountTab === a}
-                onClick={() => setAccountTab(a)}
-                count={incomes.filter((t) => t.account === a).length}
-              />
-            ))}
-          </div>
-
-          {/* Income card grid (2 cols) */}
-          {loading ? (
-            <div className="grid grid-cols-2 gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 rounded-lg" />
-              ))}
-            </div>
-          ) : displayedIncomes.length === 0 ? (
-            <EmptyState
-              icon={<TrendingUp className="h-6 w-6" />}
-              title="No income yet"
-              description="Add income using the row above."
-              tone="emerald"
-            />
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {displayedIncomes.map((t) => (
-                <IncomeCard
-                  key={t.id}
-                  transaction={t}
-                  onClick={() => openTransaction(t)}
+        {/* Swipable content area — drag left/right to switch Income/Expense */}
+        <motion.div
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.1}
+          dragMomentum={false}
+          dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+          transition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+          onDragEnd={(_, info) => {
+            const threshold = 32;
+            if (info.offset.x < -threshold && viewTab === "income") setViewTab("expense");
+            else if (info.offset.x > threshold && viewTab === "expense") setViewTab("income");
+          }}
+          whileDrag={{ cursor: "grabbing" }}
+          className="select-none"
+          style={{ cursor: "grab" }}
+        >
+          {viewTab === "income" ? (
+            /* ===== INCOME: account tabs + 11-col grid ===== */
+            <div className="space-y-2">
+              {/* Account tabs (swipable, drag-to-switch) */}
+              <motion.div
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.1}
+                dragMomentum={false}
+                dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+                transition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+                onDragEnd={(_, info) => {
+                  const threshold = 32;
+                  const order = ["All", ...incomeAccounts];
+                  const idx = order.indexOf(accountTab);
+                  if (idx === -1) { setAccountTab("All"); return; }
+                  if (info.offset.x < -threshold && idx < order.length - 1) setAccountTab(order[idx + 1]);
+                  else if (info.offset.x > threshold && idx > 0) setAccountTab(order[idx - 1]);
+                }}
+                whileDrag={{ cursor: "grabbing" }}
+                className="flex cursor-grab gap-1.5 overflow-x-auto pb-0.5 select-none snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                role="tablist"
+                aria-label="Income accounts"
+              >
+                <AccountTab
+                  label="All"
+                  active={accountTab === "All"}
+                  onClick={() => setAccountTab("All")}
+                  count={incomes.length}
                 />
-              ))}
+                {incomeAccounts.map((a) => (
+                  <AccountTab
+                    key={a}
+                    label={a}
+                    active={accountTab === a}
+                    onClick={() => setAccountTab(a)}
+                    count={incomes.filter((t) => t.account === a).length}
+                  />
+                ))}
+              </motion.div>
+
+              {/* Income 11-column grid of one-line cards */}
+              {loading ? (
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                  {Array.from({ length: 11 }).map((_, i) => (
+                    <Skeleton key={i} className="h-9 rounded-md" />
+                  ))}
+                </div>
+              ) : displayedIncomes.length === 0 ? (
+                <EmptyState
+                  icon={<TrendingUp className="h-6 w-6" />}
+                  title="No income yet"
+                  description="Add income using the row above."
+                  tone="emerald"
+                />
+              ) : (
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                  {displayedIncomes.map((t) => (
+                    <CompactCard
+                      key={t.id}
+                      transaction={t}
+                      tone="income"
+                      onClick={() => openTransaction(t)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ===== EXPENSE: 11-col grid ===== */
+            <div className="space-y-2">
+              {loading ? (
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                  {Array.from({ length: 11 }).map((_, i) => (
+                    <Skeleton key={i} className="h-9 rounded-md" />
+                  ))}
+                </div>
+              ) : expenses.length === 0 ? (
+                <EmptyState
+                  icon={<TrendingDown className="h-6 w-6" />}
+                  title="No expenses"
+                  description="Track spending using the row above."
+                  tone="rose"
+                />
+              ) : (
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                  {expenses.map((t) => (
+                    <CompactCard
+                      key={t.id}
+                      transaction={t}
+                      tone="expense"
+                      onClick={() => openTransaction(t)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
-        </section>
-
-        {/* ===== Expense (2 cols, card grid) ===== */}
-        <section className="space-y-2 lg:col-span-2">
-          <div className="flex items-center gap-1.5">
-            <TrendingDown className="h-4 w-4 text-rose-600" />
-            <h2 className="text-sm font-semibold">Expenses</h2>
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
-              {expenses.length}
-            </Badge>
-          </div>
-
-          {loading ? (
-            <div className="grid grid-cols-2 gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 rounded-lg" />
-              ))}
-            </div>
-          ) : expenses.length === 0 ? (
-            <EmptyState
-              icon={<TrendingDown className="h-6 w-6" />}
-              title="No expenses"
-              description="Track spending using the row above."
-              tone="rose"
-            />
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {expenses.slice(0, 30).map((t) => (
-                <ExpenseCard
-                  key={t.id}
-                  transaction={t}
-                  onClick={() => openTransaction(t)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+        </motion.div>
       </div>
 
       {/* ---------- Dialog ---------- */}
@@ -667,142 +735,57 @@ function AccountTab({
   );
 }
 
-function IncomeCard({
+/** Very compact one-line card: date · category · amount, all in a single row. */
+function CompactCard({
   transaction,
+  tone,
   onClick,
 }: {
   transaction: Transaction;
+  tone: "income" | "expense";
   onClick: () => void;
 }) {
+  const isIncome = tone === "income";
+  const hasImage = !!(transaction.imageData || transaction.imageData2);
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col gap-2 overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
-    >
-      {/* Receipt images (up to 2) */}
-      {(transaction.imageData || transaction.imageData2) && (
-        <div className="relative flex w-full gap-0.5 overflow-hidden bg-muted">
-          {transaction.imageData && (
-            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
-              <img
-                src={transaction.imageData}
-                alt="Receipt 1"
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            </div>
-          )}
-          {transaction.imageData2 && (
-            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
-              <img
-                src={transaction.imageData2}
-                alt="Receipt 2"
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            </div>
-          )}
-          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-background/90 text-emerald-600 shadow-sm">
-            <Receipt className="h-3 w-3" />
-          </span>
-        </div>
+      className={cn(
+        "group flex items-center gap-1 overflow-hidden rounded-md border px-1.5 py-1 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
+        isIncome
+          ? "border-emerald-200/70 bg-emerald-50/40 hover:border-emerald-400 focus-visible:ring-emerald-500/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+          : "border-rose-200/70 bg-rose-50/40 hover:border-rose-400 focus-visible:ring-rose-500/40 dark:border-rose-900/50 dark:bg-rose-950/20"
       )}
-      <div className="flex flex-col gap-2 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <Badge
-            variant="outline"
-            className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
-          >
-            <AccountIcon account={transaction.account} className="h-3 w-3" />
-            {transaction.account}
-          </Badge>
-          <span className="text-base font-bold text-emerald-600">
-            +{formatCurrency(transaction.amount)}
-          </span>
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium capitalize">
-            {transaction.category}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-            <CategoryIcon category={transaction.category} className="h-3 w-3" />
-            <span className="capitalize">{transaction.category}</span>
-            <span className="mx-0.5">·</span>
-            {formatDate(transaction.date)}
-          </p>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function ExpenseCard({
-  transaction,
-  onClick,
-}: {
-  transaction: Transaction;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex flex-col gap-2 overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-rose-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50"
+      title={`${transaction.category} · ${transaction.account} · ${formatDate(transaction.date)}`}
     >
-      {/* Receipt images (up to 2) */}
-      {(transaction.imageData || transaction.imageData2) && (
-        <div className="relative flex w-full gap-0.5 overflow-hidden bg-muted">
-          {transaction.imageData && (
-            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
-              <img
-                src={transaction.imageData}
-                alt="Receipt 1"
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            </div>
-          )}
-          {transaction.imageData2 && (
-            <div className="relative aspect-[4/3] flex-1 overflow-hidden">
-              <img
-                src={transaction.imageData2}
-                alt="Receipt 2"
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            </div>
-          )}
-          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-background/90 text-rose-600 shadow-sm">
-            <Receipt className="h-3 w-3" />
-          </span>
-        </div>
+      {/* Date (very short) */}
+      <span className="shrink-0 text-[9px] font-medium text-muted-foreground">
+        {formatDateShort(transaction.date)}
+      </span>
+      {/* Category (truncate) */}
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-[10px] font-semibold capitalize",
+          isIncome ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"
+        )}
+      >
+        {transaction.category}
+      </span>
+      {/* Receipt indicator */}
+      {hasImage && (
+        <Receipt className={cn("h-2.5 w-2.5 shrink-0", isIncome ? "text-emerald-500" : "text-rose-500")} />
       )}
-      <div className="flex flex-col gap-2 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <Badge
-            variant="outline"
-            className="gap-1 border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300"
-          >
-            <AccountIcon account={transaction.account} className="h-3 w-3" />
-            {transaction.account}
-          </Badge>
-          <span className="text-base font-bold text-rose-600">
-            −{formatCurrency(transaction.amount)}
-          </span>
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium capitalize">
-            {transaction.category}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-            <CategoryIcon category={transaction.category} className="h-3 w-3" />
-            <span className="capitalize">{transaction.category}</span>
-            <span className="mx-0.5">·</span>
-            {formatDate(transaction.date)}
-          </p>
-        </div>
-      </div>
+      {/* Amount */}
+      <span
+        className={cn(
+          "shrink-0 text-[10px] font-bold tabular-nums",
+          isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+        )}
+      >
+        {isIncome ? "+" : "−"}
+        {formatCurrency(transaction.amount)}
+      </span>
     </button>
   );
 }

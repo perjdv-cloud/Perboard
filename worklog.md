@@ -537,3 +537,34 @@ Stage Summary:
 - Inline entry is compact (h-8 controls, tighter spacing, "In"/"Out" toggle)
 - Income and Expenses are shown side-by-side in a 4-column grid (2 cols each), both as 2-column card grids
 - Income keeps account tabs; expenses are now cards (was a list)
+
+---
+Task ID: 24
+Agent: Orchestrator
+Task: Finance — swipable Income/Expense tabs, swipable account tabs in income, 11-col grid of one-line compact cards
+
+Work Log:
+- Added `motion` import from framer-motion
+- Added `viewTab` state ("income" | "expense") for the top-level Income/Expense tab switcher
+- Added `formatDateShort(iso)` helper → "3 Jul" (very short date for compact cards)
+- Replaced the side-by-side income+expense sections with a new structure:
+  1. **Top-level Income/Expense tabs** — a segmented tab bar (Income count / Expense count). The content area is wrapped in a framer-motion `motion.div` with `drag="x"`, soft spring (stiffness 180, damping 26, mass 0.5), 32px threshold — swipe left/right switches between Income and Expense views
+  2. **Income view** — contains account tabs + 11-col grid:
+     - Account tabs (All + per-account) are wrapped in their own framer-motion `motion.div` with the same soft spring drag — swipe left/right cycles through accounts. Clicking still works.
+     - 11-column responsive grid (`grid-cols-2 sm:4 md:6 lg:8 xl:11`) of CompactCard components
+  3. **Expense view** — 11-column grid of CompactCard components (same responsive scale)
+- Created `CompactCard` component — a very compact ONE-LINE card: `[date] [category] [receipt icon] [amount]` all in a single horizontal row. Emerald-themed for income (+amount), rose-themed for expense (−amount). Shows a small Receipt icon if images are attached. Tiny typography (text-[9px] date, text-[10px] category/amount). Hover lift.
+- Removed the old IncomeCard and ExpenseCard components (no longer used)
+- Verified via Agent Browser + JS measurement:
+  - Income/Expense tab buttons render with counts (Income 3, Expense 7)
+  - Account tabs (All 3, Card 1, CRL 2) render below Income tab; clicking CRL filters to 2 CRL cards
+  - Compact one-line cards: "3 Jul DTO +₹1,111", "3 Jul Food −₹396" etc. (date, category, amount in one line)
+  - Grid measured at 11 columns on desktop (grid width 1232px, card width 107px → 11 cols)
+  - Switching Income→Expense→Income works; no console/runtime errors
+  - `bun run lint` clean
+
+Stage Summary:
+- Two top-level tabs (Income / Expense) that are smoothly swipable (drag left/right to switch)
+- Income section has account tabs that are smoothly swipable (drag left/right to cycle accounts)
+- Both income and expense use an 11-column responsive grid (2 cols mobile → 11 cols desktop)
+- Cards are very compact one-line: date · category · amount (+ receipt indicator) in a single row
