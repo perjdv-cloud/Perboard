@@ -234,3 +234,22 @@ Stage Summary:
 - Folder deletion requires confirmation via a prompt that states the folder name + affected note count
 - Delete X is always visible on every folder pill
 - Folder row is swipable (drag left/right to switch folders) in addition to clickable/scrollable
+
+---
+Task ID: 10
+Agent: Orchestrator
+Task: Move folder swipe gesture from folder pills to the notes content area
+
+Work Log:
+- Reverted FolderTabs to a plain scrollable div (removed the framer-motion drag, swipe fn, scrollerRef, cursor:grab) — folder pills are now click/scroll only
+- Added `folderOrder` (["all", ...folder ids]) and `folderIndex` to the main NotesTab component
+- Added a `swipeFolder(dir)` callback that moves to the next/previous folder in folderOrder
+- Wrapped the section heading + notes grid/loading/empty in a `motion.div` with `drag="x"`, `dragConstraints={{left:0,right:0}}` (snap-back), `dragElastic={0.16}`, `dragMomentum={false}`, and `onDragEnd` that calls swipeFolder(1) on left-swipe / swipeFolder(-1) on right-swipe when |offset.x| > 45px
+- Added prev/next chevron buttons (ChevronLeft/ChevronRight) in the section heading row with a "swipe" hint label, disabled at the first/last folder — gives desktop users a clickable affordance and signals the swipe gesture
+- Verified via Agent Browser: swipe-left on the notes area moved All Notes → Care, swipe-right moved Care → All Notes, clicking a note card still opens the editor dialog (tap not broken by drag), folder pills row is no longer draggable
+- `bun run lint` clean; no console/runtime errors
+
+Stage Summary:
+- Swipe-to-change-folder now lives on the notes content area (heading + grid) instead of the folder names row
+- Folder pills row is back to plain click/scroll
+- Prev/Next chevron buttons in the heading provide an accessible, discoverable alternative to swiping

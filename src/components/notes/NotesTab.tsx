@@ -27,6 +27,8 @@ import {
   SortAsc,
   Check,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -259,6 +261,27 @@ export default function NotesTab() {
       ? "All notes"
       : folders.find((f) => f.id === activeFolder)?.name ?? "Notes";
 
+  // Ordered list of folder ids for swiping: "all" + each folder
+  const folderOrder = useMemo(
+    () => ["all", ...folders.map((f) => f.id)],
+    [folders]
+  );
+  const folderIndex = folderOrder.indexOf(activeFolder);
+
+  const swipeFolder = useCallback(
+    (dir: 1 | -1) => {
+      const idx = folderOrder.indexOf(activeFolder);
+      if (idx === -1) {
+        setActiveFolder("all");
+        return;
+      }
+      const next = idx + dir;
+      if (next < 0 || next >= folderOrder.length) return;
+      setActiveFolder(folderOrder[next]);
+    },
+    [folderOrder, activeFolder]
+  );
+
   return (
     <div className="space-y-3">
       {/* Inline toolbar: Add note + search + sort */}
@@ -329,40 +352,78 @@ export default function NotesTab() {
         onUpdated={handleSaved}
       />
 
-      {/* Section heading */}
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          {activeFolderName}
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
-            {filteredNotes.length}
-          </span>
-        </h2>
-      </div>
-
-      {/* Notes grid / loading / empty */}
-      {loading ? (
-        <SkeletonGrid />
-      ) : filteredNotes.length === 0 ? (
-        <EmptyState
-          hasSearch={!!search.trim()}
-          onCreate={() => setComposerOpen(true)}
-        />
-      ) : (
-        <div className="columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
-          <AnimatePresence initial={false}>
-            {filteredNotes.map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                folder={folders.find((f) => f.id === note.folderId)}
-                onOpen={handleOpenNote}
-                onPin={handleTogglePin}
-                onDelete={handleDeleteNote}
-              />
-            ))}
-          </AnimatePresence>
+      {/* Swipeable notes area — drag left/right to switch folders */}
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.16}
+        dragMomentum={false}
+        onDragEnd={(_, info) => {
+          const threshold = 45;
+          if (info.offset.x < -threshold) swipeFolder(1);
+          else if (info.offset.x > threshold) swipeFolder(-1);
+        }}
+        className="select-none"
+        style={{ cursor: "grab" }}
+      >
+        {/* Section heading with prev/next chevrons */}
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            {activeFolderName}
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+              {filteredNotes.length}
+            </span>
+          </h2>
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => swipeFolder(-1)}
+              disabled={folderIndex <= 0}
+              className="grid h-7 w-7 place-items-center rounded-full transition hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+              aria-label="Previous folder"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="hidden text-[11px] font-normal sm:inline">
+              swipe
+            </span>
+            <button
+              type="button"
+              onClick={() => swipeFolder(1)}
+              disabled={folderIndex >= folderOrder.length - 1}
+              className="grid h-7 w-7 place-items-center rounded-full transition hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+              aria-label="Next folder"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      )}
+
+        {/* Notes grid / loading / empty */}
+        {loading ? (
+          <SkeletonGrid />
+        ) : filteredNotes.length === 0 ? (
+          <EmptyState
+            hasSearch={!!search.trim()}
+            onCreate={() => setComposerOpen(true)}
+          />
+        ) : (
+          <div className="mt-3 columns-2 gap-4 sm:columns-3 md:columns-5 lg:columns-7 xl:columns-9 2xl:columns-11">
+            <AnimatePresence initial={false}>
+              {filteredNotes.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  folder={folders.find((f) => f.id === note.folderId)}
+                  onOpen={handleOpenNote}
+                  onPin={handleTogglePin}
+                  onDelete={handleDeleteNote}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </motion.div>
 
       {/* Editor dialog */}
       <NoteEditor
@@ -402,45 +463,10 @@ function FolderTabs({
   onAdd: () => void;
   onDelete: (id: string) => void;
 }) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-
-  // Swipe left/right on the pill row to move between folders
-  const swipe = (dir: 1 | -1) => {
-    const ordered: { id: string }[] = [
-      { id: "all" },
-      ...folders.map((f) => ({ id: f.id })),
-    ];
-    const idx = ordered.findIndex((o) => o.id === active);
-    if (idx === -1) {
-      onSelect("all");
-      return;
-    }
-    const next = idx + dir;
-    if (next < 0) return;
-    if (next >= ordered.length) return;
-    onSelect(ordered[next].id);
-    // scroll the chosen pill into view
-    requestAnimationFrame(() => {
-      const el = scrollerRef.current?.querySelector<HTMLElement>(
-        `[data-folder-id="${ordered[next].id}"]`
-      );
-      el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-    });
-  };
-
   return (
-    <motion.div
-      ref={scrollerRef}
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.18}
-      onDragEnd={(_, info) => {
-        const threshold = 40;
-        if (info.offset.x < -threshold) swipe(1);
-        else if (info.offset.x > threshold) swipe(-1);
-      }}
+    <div
       className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-      style={{ scrollSnapType: "x proximity", cursor: "grab" }}
+      style={{ scrollSnapType: "x proximity" }}
     >
       <FolderPill
         folderId="all"
@@ -471,7 +497,7 @@ function FolderTabs({
         <FolderPlus className="h-3.5 w-3.5" />
         New folder
       </button>
-    </motion.div>
+    </div>
   );
 }
 
