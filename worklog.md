@@ -362,3 +362,26 @@ Stage Summary:
 - Files tab now uses a light blue (sky) theme instead of rose
 - Folder swipe lives on the file content area (heading + grid), not the folder pills row — folder pills are click/scroll only
 - File card thumbnails are half their previous height (aspect 8:3), making the grid much more compact vertically
+
+---
+Task ID: 16
+Agent: Orchestrator
+Task: Files — light blue active folder highlight + smart (auto) folders by type
+
+Work Log:
+- Changed the active FolderPill highlight from dark (bg-foreground text-background) to light blue: `bg-sky-500 text-white`. Active count badge → `bg-white/25 text-white`; active accent dot → white. Inactive pills unchanged.
+- Added SMART_FOLDERS constant: 4 virtual folders that auto-group files by type — Images (image), PDFs (pdf), Sheets (excel), Docs (document) — each with its own icon + accent color
+- Added an `isSmartFolder(id)` type guard (ids prefixed `smart:`)
+- fetchFiles: when activeFolder is "all" or a smart folder, fetches ALL files from /api/files (smart filtering is client-side); user folders still use ?folderId=
+- sortedFiles: when a smart folder is active, filters the fetched files by the matching type before search/sort
+- folderOrder (for swiping) now includes smart folders: ["all", ...smart ids, ...user folder ids] — swipe left/right cycles through All → Images → PDFs → Sheets → Docs → user folders
+- Folder pills row: added the 4 smart folder pills (with live file counts per type) between "All Files" and user folders. "All Files" pill now also shows a total count.
+- Section heading: shows the smart folder label (e.g. "Images") when a smart folder is active
+- Empty state: shows "No <Type> yet" (e.g. "No PDFs yet") for smart folders with no matching files
+- Verified via Agent Browser + VLM at mobile 390×844: active folder pill is light blue; smart folders (Images 8, PDFs 0, Sheets 0, Docs 0) render with counts; clicking Images → "Images 8" (all 8 files are images, correctly filtered); clicking PDFs → "PDFs 0" + "No PDFs yet" empty state; swipe Next cycles PDFs → Sheets → Docs (smart folders included in swipe order); back to "All files 8"; no console/runtime errors
+- `bun run lint` clean
+
+Stage Summary:
+- Active folder pill now highlights in light blue (sky-500)
+- Smart folders auto-organize files by type: Images, PDFs, Sheets, Docs — with live counts, type-filtered grids, and proper headings/empty states
+- Smart folders are part of the swipe order, so swiping/dragging the file content area cycles through All → smart folders → user folders

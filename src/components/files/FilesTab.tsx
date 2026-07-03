@@ -108,6 +108,24 @@ const TYPE_BADGE: Record<
   },
 };
 
+// Smart (auto) folders — virtual folders that group files by type
+const SMART_FOLDERS: {
+  id: string;
+  label: string;
+  type: FileType;
+  icon: typeof FileText;
+  accent: string;
+}[] = [
+  { id: "smart:image", label: "Images", type: "image", icon: ImageIcon, accent: "#38bdf8" },
+  { id: "smart:pdf", label: "PDFs", type: "pdf", icon: FileType2, accent: "#f59e0b" },
+  { id: "smart:excel", label: "Sheets", type: "excel", icon: FileSpreadsheet, accent: "#10b981" },
+  { id: "smart:document", label: "Docs", type: "document", icon: FileText, accent: "#64748b" },
+];
+
+function isSmartFolder(id: string): id is `smart:${FileType}` {
+  return id.startsWith("smart:");
+}
+
 function detectType(file: File): FileType {
   const mime = file.type.toLowerCase();
   if (mime.startsWith("image/")) return "image";
@@ -183,8 +201,9 @@ export default function FilesTab() {
   const fetchFiles = useCallback(async () => {
     setLoadingFiles(true);
     try {
+      // Smart folders + "all" need every file (filtering is client-side)
       const url =
-        activeFolder === "all"
+        activeFolder === "all" || isSmartFolder(activeFolder)
           ? "/api/files"
           : `/api/files?folderId=${encodeURIComponent(activeFolder)}`;
       const data = await api<FileItem[]>(url);
@@ -373,21 +392,28 @@ export default function FilesTab() {
 
   const sortedFiles = useMemo(() => {
     let arr = files;
+    // Smart folder: filter by file type
+    if (isSmartFolder(activeFolder)) {
+      const smartType = activeFolder.split(":")[1] as FileType;
+      arr = arr.filter((f) => f.type === smartType);
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       arr = arr.filter((f) => f.name.toLowerCase().includes(q));
     }
     return sortItems(arr, sort);
-  }, [files, sort, search]);
+  }, [files, sort, search, activeFolder]);
 
   const activeFolderObj = useMemo(
-    () => (activeFolder === "all" ? null : folders.find((f) => f.id === activeFolder) ?? null),
+    () => (activeFolder === "all" || isSmartFolder(activeFolder)
+      ? null
+      : folders.find((f) => f.id === activeFolder) ?? null),
     [activeFolder, folders]
   );
 
-  // Ordered folder ids for swiping between folders
+  // Ordered folder ids for swiping: All → Smart folders → User folders
   const folderOrder = useMemo(
-    () => ["all", ...folders.map((f) => f.id)],
+    () => ["all", ...SMART_FOLDERS.map((s) => s.id), ...folders.map((f) => f.id)],
     [folders]
   );
   const folderIndex = folderOrder.indexOf(activeFolder);
@@ -495,9 +521,24 @@ export default function FilesTab() {
           onClick={() => setActiveFolder("all")}
           label="All Files"
           icon={<FolderOpen className="h-4 w-4" />}
-          count={undefined}
+          count={files.length}
           accent="#38bdf8"
         />
+        {/* Smart (auto) folders — group by file type */}
+        {SMART_FOLDERS.map((s) => {
+          const SmartIcon = s.icon;
+          return (
+            <FolderPill
+              key={s.id}
+              active={activeFolder === s.id}
+              onClick={() => setActiveFolder(s.id)}
+              label={s.label}
+              icon={<SmartIcon className="h-4 w-4" />}
+              count={files.filter((f) => f.type === s.type).length}
+              accent={s.accent}
+            />
+          );
+        })}
         {loadingFolders
           ? Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-9 w-28 shrink-0 rounded-full" />
@@ -547,6 +588,8 @@ export default function FilesTab() {
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             {activeFolder === "all"
               ? "All files"
+              : isSmartFolder(activeFolder)
+              ? SMART_FOLDERS.find((s) => s.id === activeFolder)?.label ?? "Files"
               : activeFolderObj?.name ?? "Files"}
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
               {sortedFiles.length}
@@ -634,6 +677,8 @@ export default function FilesTab() {
               <p className="text-base font-semibold">
                 {activeFolder === "all"
                   ? "No files yet"
+                  : isSmartFolder(activeFolder)
+                  ? `No ${SMART_FOLDERS.find((s) => s.id === activeFolder)?.label ?? "files"} yet`
                   : `Nothing in "${activeFolderObj?.name ?? "this folder"}"`}
               </p>
               <p className="mx-auto max-w-sm text-sm text-muted-foreground">
@@ -780,13 +825,13 @@ function FolderPill({
         className={cn(
           "flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-all",
           active
-            ? "border-transparent bg-foreground text-background shadow-sm"
+            ? "border-transparent bg-sky-500 text-white shadow-sm"
             : "border-border/70 bg-background text-foreground hover:bg-accent"
         )}
       >
         <span
           className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: accent }}
+          style={{ backgroundColor: active ? "#ffffff" : accent }}
           aria-hidden
         />
         {icon}
@@ -796,7 +841,7 @@ function FolderPill({
             className={cn(
               "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
               active
-                ? "bg-background/20 text-background"
+                ? "bg-white/25 text-white"
                 : "bg-muted text-muted-foreground"
             )}
           >
