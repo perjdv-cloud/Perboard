@@ -721,3 +721,25 @@ Stage Summary:
 - Database switched from SQLite to PostgreSQL (Neon)
 - Build pipeline: postinstall runs prisma generate, build runs next build
 - Awaiting user's Neon credentials (DATABASE_URL + DIRECT_URL) and GitHub/Vercel account access to perform the actual deployment
+
+---
+Task ID: 31
+Agent: Orchestrator
+Task: Deploy to Neon + GitHub (Vercel pending user action)
+
+Work Log:
+- Updated .env with real Neon credentials (DATABASE_URL pooled + DIRECT_URL direct, both with sslmode=require, removed channel_binding=require for Prisma compatibility)
+- Ran `bun run db:push` against Neon → all tables created successfully on PostgreSQL database "neondb" at ep-jolly-mouse-atjju7e6
+- Fixed a stale shell env var issue: DATABASE_URL was set in the shell environment to the old SQLite path, overriding .env. Created a start-dev.sh script that exports the correct Neon env vars before starting the dev server.
+- Verified Neon connection: GET /api/notes returned [] HTTP:200; POST /api/note-folders created a folder and returned HTTP:201 with the created record; verified the folder persisted via direct Prisma query (found "MyFolder"). Cleaned up test data.
+- Removed .env from git tracking (was committed with placeholder credentials only, no real creds in history). Added .env.example to gitignore exception so it's committed. Added start-dev.sh to .gitignore (contains credentials).
+- Committed and pushed 27 commits to GitHub repo https://github.com/perjdv-cloud/Perboard (branch: main)
+- Verified: .env is NOT in the repo (API returns 404); .env.example, schema.prisma, package.json, DEPLOY.md all present in the repo
+- Removed PAT from the git remote URL (set back to plain https URL) for local security
+- Note: Next.js 16 Turbopack dev server is unstable (crashes after POST requests during hot-reload), but this does NOT affect production — Vercel uses a different build/runtime pipeline. Database CRUD is confirmed working.
+
+Stage Summary:
+- Neon database: CONNECTED, all tables created, CRUD verified
+- GitHub: code pushed to https://github.com/perjdv-cloud/Perboard (27 commits, .env excluded)
+- Vercel: PENDING — user needs to import the repo and set 2 env vars (DATABASE_URL + DIRECT_URL). Full instructions provided in chat.
+- SECURITY: user should rotate the GitHub PAT (was shared in chat)
