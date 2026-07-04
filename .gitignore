@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -56,4 +57,4 @@ server.log
 # local SQLite db (legacy, not used in production)
 /db/
 *.db
-agent-ctx/
+agent-ctx/start-dev.sh
