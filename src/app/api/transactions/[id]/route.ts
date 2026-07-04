@@ -19,6 +19,7 @@ export async function PUT(
     category?: string;
     imageData?: string | null;
     imageData2?: string | null;
+    received?: boolean;
     date?: Date;
   } = {};
 
@@ -52,6 +53,8 @@ export async function PUT(
   ) {
     data.imageData2 = body.imageData2;
   }
+  // received: boolean toggle
+  if (typeof body.received === "boolean") data.received = body.received;
   if (body.date) {
     const d = new Date(body.date);
     if (!Number.isNaN(d.getTime())) data.date = d;

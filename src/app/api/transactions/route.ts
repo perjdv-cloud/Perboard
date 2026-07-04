@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     typeof body.imageData2 === "string" && body.imageData2.startsWith("data:")
       ? body.imageData2
       : null;
+  const received = body.received === true;
   const date = body.date ? new Date(body.date) : new Date();
 
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   }
 
   const created = await db.transaction.create({
-    data: { type, account, amount, description, category, imageData, imageData2, date },
+    data: { type, account, amount, description, category, imageData, imageData2, received, date },
   });
 
   return NextResponse.json(

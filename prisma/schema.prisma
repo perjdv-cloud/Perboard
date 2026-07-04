@@ -68,6 +68,7 @@ model Transaction {
   category    String   @default("General")
   imageData   String?  // base64 data URL (receipt/bill photo 1)
   imageData2  String?  // base64 data URL (receipt/bill photo 2)
+  received    Boolean  @default(false) // income received/paid toggle
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

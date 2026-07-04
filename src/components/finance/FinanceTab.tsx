@@ -253,14 +253,6 @@ export default function FinanceTab() {
   }, [fetchAll]);
 
   // ----- Derived -----
-  const totalIncome = transactions
-    .filter((t) => t.type === "income")
-    .reduce((s, t) => s + t.amount, 0);
-  const totalExpense = transactions
-    .filter((t) => t.type === "expense")
-    .reduce((s, t) => s + t.amount, 0);
-  const net = totalIncome - totalExpense;
-
   const expenses = transactions.filter((t) => t.type === "expense");
   const incomes = transactions.filter((t) => t.type === "income");
 
@@ -405,64 +397,6 @@ export default function FinanceTab() {
 
   return (
     <div className="space-y-3">
-      {/* ---------- Compact summary (one line) ---------- */}
-      <div className="flex items-stretch gap-1.5 overflow-x-auto rounded-lg border bg-card p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1.5 dark:bg-emerald-950/40">
-          <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-          <div className="min-w-0 leading-tight">
-            <p className="text-[9px] font-medium uppercase tracking-wide text-emerald-700/70 dark:text-emerald-300/70">Income</p>
-            {loading ? (
-              <Skeleton className="h-3.5 w-14" />
-            ) : (
-              <p className="truncate text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                {formatCurrency(totalIncome)}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-rose-50 px-2.5 py-1.5 dark:bg-rose-950/40">
-          <TrendingDown className="h-3.5 w-3.5 shrink-0 text-rose-600" />
-          <div className="min-w-0 leading-tight">
-            <p className="text-[9px] font-medium uppercase tracking-wide text-rose-700/70 dark:text-rose-300/70">Expense</p>
-            {loading ? (
-              <Skeleton className="h-3.5 w-14" />
-            ) : (
-              <p className="truncate text-sm font-bold text-rose-700 dark:text-rose-300">
-                {formatCurrency(totalExpense)}
-              </p>
-            )}
-          </div>
-        </div>
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 py-1.5",
-            net >= 0
-              ? "bg-emerald-50 dark:bg-emerald-950/40"
-              : "bg-rose-50 dark:bg-rose-950/40"
-          )}
-        >
-          <Wallet className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 leading-tight">
-            <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Net</p>
-            {loading ? (
-              <Skeleton className="h-3.5 w-14" />
-            ) : (
-              <p
-                className={cn(
-                  "truncate text-sm font-bold",
-                  net >= 0
-                    ? "text-emerald-700 dark:text-emerald-300"
-                    : "text-rose-700 dark:text-rose-300"
-                )}
-              >
-                {net < 0 ? "−" : ""}
-                {formatCurrency(Math.abs(net))}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* ---------- Inline entry (compact) ---------- */}
       <Card className="gap-0 py-0">
         <CardContent className="px-2.5 py-2.5 sm:px-3 sm:py-3">
@@ -897,42 +831,56 @@ function CompactCard({
 }) {
   const isIncome = tone === "income";
   const hasImage = !!(transaction.imageData || transaction.imageData2);
+  const received = !!transaction.received;
+  // Received → darker/solid color; Not received → light/faded color
+  const cardCls = isIncome
+    ? received
+      ? "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500/50 dark:border-emerald-400 dark:bg-emerald-700"
+      : "border-emerald-200/70 bg-emerald-50/50 hover:border-emerald-400 focus-visible:ring-emerald-500/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+    : received
+      ? "border-rose-500 bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-500/50 dark:border-rose-400 dark:bg-rose-700"
+      : "border-rose-200/70 bg-rose-50/50 hover:border-rose-400 focus-visible:ring-rose-500/40 dark:border-rose-900/50 dark:bg-rose-950/20";
+  // When received (solid bg), text should be white
+  const dateCls = received ? "text-white/80" : "text-muted-foreground";
+  const catCls = received
+    ? "text-white"
+    : isIncome
+      ? "text-emerald-700 dark:text-emerald-300"
+      : "text-rose-700 dark:text-rose-300";
+  const amtCls = received
+    ? "text-white"
+    : isIncome
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-rose-600 dark:text-rose-400";
+  const iconCls = received ? "text-white/90" : isIncome ? "text-emerald-500" : "text-rose-500";
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
-        isIncome
-          ? "border-emerald-200/70 bg-emerald-50/50 hover:border-emerald-400 focus-visible:ring-emerald-500/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
-          : "border-rose-200/70 bg-rose-50/50 hover:border-rose-400 focus-visible:ring-rose-500/40 dark:border-rose-900/50 dark:bg-rose-950/20"
+        "group relative flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
+        cardCls
       )}
-      title={`${transaction.category} · ${transaction.account} · ${formatDate(transaction.date)}`}
+      title={`${transaction.category} · ${transaction.account} · ${formatDate(transaction.date)}${received ? " · received" : ""}`}
     >
+      {/* Received indicator dot */}
+      {received && (
+        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-white/90" aria-hidden />
+      )}
       {/* Date (short) */}
-      <span className="shrink-0 text-xs font-medium text-muted-foreground">
+      <span className={cn("shrink-0 text-xs font-medium", dateCls)}>
         {formatDateShort(transaction.date)}
       </span>
       {/* Category (truncate) */}
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate text-sm font-semibold capitalize",
-          isIncome ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"
-        )}
-      >
+      <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold capitalize", catCls)}>
         {transaction.category}
       </span>
       {/* Receipt indicator */}
       {hasImage && (
-        <Receipt className={cn("h-3.5 w-3.5 shrink-0", isIncome ? "text-emerald-500" : "text-rose-500")} />
+        <Receipt className={cn("h-3.5 w-3.5 shrink-0", iconCls)} />
       )}
       {/* Amount */}
-      <span
-        className={cn(
-          "shrink-0 text-sm font-bold tabular-nums",
-          isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-        )}
-      >
+      <span className={cn("shrink-0 text-sm font-bold tabular-nums", amtCls)}>
         {isIncome ? "+" : "−"}
         {formatCurrency(transaction.amount)}
       </span>

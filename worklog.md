@@ -621,3 +621,33 @@ Work Log:
 Stage Summary:
 - On mobile, the Finance inline entry now arranges: Account + Category on one line, Amount + Date on one line (plus type toggle row above and image/add row below)
 - Desktop keeps the compact single-row flex-wrap layout
+
+---
+Task ID: 27
+Agent: Orchestrator
+Task: Finance — remove income/expense/net summary + add "Received"/"Paid" toggle that darkens the card
+
+Work Log:
+1. Removed the compact one-line summary (Income/Expense/Net):
+   - Deleted the summary bar JSX and the totalIncome/totalExpense/net derivations
+   - Finance tab now starts directly with the inline entry
+
+2. Added a "received" toggle that changes card color:
+   - Added `received Boolean @default(false)` to the Transaction Prisma model; ran db:push + db:generate; cleared .next cache + restarted dev server so the Prisma client recognized the new column
+   - Updated Transaction type with `received: boolean`
+   - Updated POST /api/transactions to accept + persist `received`
+   - Updated PUT /api/transactions/[id] to accept `received` (boolean)
+   - TransactionDialog: added a Switch component in a highlighted row after Category+Date. Label is "Received" for income, "Paid" for expense. Subtitle shows "Marked as received/paid" vs "Not yet received/paid". The row background turns emerald (income) or rose (expense) when toggled on. Auto-saves via PUT on toggle.
+   - CompactCard: when `transaction.received` is true, the card uses a DARKER/SOLID color (bg-emerald-600 text-white for income, bg-rose-600 text-white for expense) + a small white dot indicator in the top-right corner. When false, the card uses the light/faded color as before. All text colors adapt (white on solid, colored on light).
+
+- Verified via Agent Browser + JS eval:
+  - Summary (income/expense/net) is gone — Finance tab starts with the inline entry
+  - Opened an income card → dialog shows a "Received" switch (off by default)
+  - Toggled it on → persisted (API confirmed received: true) → card background changed to dark emerald (lab(55.0481...) = emerald-600) with a white dot indicator; other cards stayed light
+  - Toggled it back off → card returned to light background
+  - Opened an expense card → dialog shows a "Paid" switch (label adapts to type)
+  - No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- The income/expense/net summary bar is removed
+- Each transaction card has a Received/Paid toggle in its expand dialog; when on, the card turns a darker solid color (emerald-600 for income, rose-600 for expense) with a white dot indicator, so received and not-received cards are visually distinct at a glance

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Trash2, Loader2, Check, TrendingDown, TrendingUp, ImagePlus, Receipt } from "lucide-react";
 import { api, formatCurrency, formatDateTime, readFileAsDataURL } from "@/lib/api";
 import type { Transaction, TransactionType } from "@/lib/types";
@@ -327,6 +328,41 @@ export default function TransactionDialog({
                 onBlur={() => void persist()}
               />
             </div>
+          </div>
+
+          {/* Received / Paid toggle */}
+          <div
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+              form.received
+                ? isIncome
+                  ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
+                  : "border-rose-300 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/40"
+                : "bg-muted/40"
+            )}
+          >
+            <div className="flex flex-col">
+              <Label htmlFor="dlg-received" className="text-sm font-semibold">
+                {isIncome ? "Received" : "Paid"}
+              </Label>
+              <span className="text-xs text-muted-foreground">
+                {form.received
+                  ? isIncome
+                    ? "Marked as received"
+                    : "Marked as paid"
+                  : isIncome
+                    ? "Not yet received"
+                    : "Not yet paid"}
+              </span>
+            </div>
+            <Switch
+              id="dlg-received"
+              checked={!!form.received}
+              onCheckedChange={(v) => {
+                setForm({ ...form, received: v });
+                void persist({ received: v });
+              }}
+            />
           </div>
 
           {/* Live preview + save indicator */}
