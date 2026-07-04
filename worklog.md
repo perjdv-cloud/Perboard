@@ -699,3 +699,25 @@ Stage Summary:
 - Received income cards use normal (non-bold) text weight
 - Grid gap increased to 8px; enlarged cards use padding (not scale) so neighbors aren't overlapped
 - Both inline entry and edit dialog support camera capture (capture="environment") for taking photos directly, in addition to gallery upload
+
+---
+Task ID: 30
+Agent: Orchestrator
+Task: Prepare project for production deployment to GitHub + Vercel + Neon (PostgreSQL)
+
+Work Log:
+- Switched Prisma schema datasource from `sqlite` to `postgresql`, added `directUrl = env("DIRECT_URL")` for Neon's pooled+direct connection pattern
+- Updated package.json: build = "prisma generate && next build"; added `postinstall: "prisma generate"` (Vercel auto-runs this so Prisma Client is available); added `db:migrate:deploy` script; fixed `start` to `next start`
+- Updated next.config.ts: removed `output: "standalone"` (Docker-only, not for Vercel); enabled reactStrictMode; added serverActions bodySizeLimit 10mb (for base64 image uploads); kept typescript.ignoreBuildErrors for third-party type safety
+- Updated .env with Neon placeholder URLs (DATABASE_URL pooled + DIRECT_URL); created .env.example as a committed template
+- Updated .gitignore: added /db/, *.db, agent-ctx/ (legacy SQLite no longer used)
+- Updated tsconfig.json: excluded examples/, skills/, mini-services/, .next from type checking (not part of the deployed app)
+- Fixed framer-motion dragTransition type errors in FilesTab, FinanceTab, NotesTab (cast as any — no-explicit-any is off, runtime unaffected)
+- Verified: `npx tsc --noEmit` passes clean; `bun run lint` clean; `prisma generate` succeeds with postgresql provider
+- Created DEPLOY.md with step-by-step guide: Neon project setup, GitHub push, Vercel import + env vars, db:push to create tables, local dev with Neon, troubleshooting
+
+Stage Summary:
+- Project is production-ready for GitHub + Vercel + Neon
+- Database switched from SQLite to PostgreSQL (Neon)
+- Build pipeline: postinstall runs prisma generate, build runs next build
+- Awaiting user's Neon credentials (DATABASE_URL + DIRECT_URL) and GitHub/Vercel account access to perform the actual deployment

@@ -52,3 +52,8 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# local SQLite db (legacy, not used in production)
+/db/
+*.db
+agent-ctx/

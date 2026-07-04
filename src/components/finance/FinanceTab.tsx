@@ -653,7 +653,7 @@ export default function FinanceTab() {
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.1}
           dragMomentum={false}
-          dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+          dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 } as any}
           transition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
           onDragEnd={(_, info) => {
             const threshold = 32;
@@ -673,7 +673,7 @@ export default function FinanceTab() {
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.1}
                 dragMomentum={false}
-                dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
+                dragTransition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 } as any}
                 transition={{ type: "spring", stiffness: 180, damping: 26, mass: 0.5 }}
                 onDragEnd={(_, info) => {
                   const threshold = 32;
