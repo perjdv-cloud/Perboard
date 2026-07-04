@@ -674,3 +674,28 @@ Work Log:
 Stage Summary:
 - Income cards with "Received" ON now enlarge (scale-105) and use #B7EDD5 (light mint green) background with dark-green text
 - Only received income cards contribute to the week/month/year group sums (non-received cards appear but don't add to the total)
+
+---
+Task ID: 29
+Agent: Orchestrator
+Task: Finance — received cards not bold + maintain card gaps + camera capture for images
+
+Work Log:
+- CompactCard: received income cards no longer use bold text. Added catWeight/amtWeight that switch from font-semibold/font-bold (normal cards) to font-medium (received cards). Verified via getComputedStyle: received cards catFont=500 amtFont=500; normal cards catFont=600 amtFont=700.
+- Removed the scale-105 transform (which could cause overlap) and replaced with padding-based enlargement (px-3 py-2.5 + ring-1 ring-emerald-400). This keeps the card the same width as neighbors so the grid gap is maintained.
+- Increased grid gap from gap-1.5 (6px) to gap-2 (8px) across all income/expense grids for better spacing. Verified: grid gap = 8px, all cards same width (105px), evenly spaced with no overlap.
+- Camera capture for images:
+  - FinanceTab inline entry: added 2 camera file inputs with capture="environment" + 2 "Cam 1"/"Cam 2" buttons (InlineCameraButton component with Camera icon). On mobile these open the device camera directly.
+  - TransactionDialog ImageSlot: added onCamera prop + camera inputs with capture="environment". Each image slot now has both an Upload (ImagePlus) button and a Camera button. When empty: two buttons (Upload + Camera) shown. When filled: three overlay buttons (Camera + Replace + Remove).
+- Verified via Agent Browser:
+  - Inline entry shows Img 1, Img 2, Cam 1, Cam 2 buttons
+  - Camera inputs have capture="environment" accept="image/*" (opens camera on mobile)
+  - Received cards: font-weight 500 (not bold), #B7EDD5 background
+  - Dialog image slots: "Upload Image 1" + "Take photo for Image 1" + "Upload Image 2" + "Take photo for Image 2" buttons
+  - Grid gap = 8px, no card overlap
+  - No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- Received income cards use normal (non-bold) text weight
+- Grid gap increased to 8px; enlarged cards use padding (not scale) so neighbors aren't overlapped
+- Both inline entry and edit dialog support camera capture (capture="environment") for taking photos directly, in addition to gallery upload

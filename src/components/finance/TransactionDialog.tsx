@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Loader2, Check, TrendingDown, TrendingUp, ImagePlus, Receipt } from "lucide-react";
+import { Trash2, Loader2, Check, TrendingDown, TrendingUp, ImagePlus, Receipt, Camera } from "lucide-react";
 import { api, formatCurrency, formatDateTime, readFileAsDataURL } from "@/lib/api";
 import type { Transaction, TransactionType } from "@/lib/types";
 import { useAccounts, useCategories } from "@/lib/pickers";
@@ -73,6 +73,8 @@ export default function TransactionDialog({
   const [imageBusy, setImageBusy] = React.useState<1 | 2 | null>(null);
   const image1InputRef = React.useRef<HTMLInputElement>(null);
   const image2InputRef = React.useRef<HTMLInputElement>(null);
+  const cam1InputRef = React.useRef<HTMLInputElement>(null);
+  const cam2InputRef = React.useRef<HTMLInputElement>(null);
   const { accounts, addAccount, removeAccount } = useAccounts();
   const { categories, addCategory, removeCategory } = useCategories();
 
@@ -280,12 +282,30 @@ export default function TransactionDialog({
               className="hidden"
               onChange={(e) => void handleImagePick(e, 2)}
             />
+            {/* Camera capture inputs */}
+            <input
+              ref={cam1InputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => void handleImagePick(e, 1)}
+            />
+            <input
+              ref={cam2InputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => void handleImagePick(e, 2)}
+            />
             <div className="grid grid-cols-2 gap-2">
               {/* Slot 1 */}
               <ImageSlot
                 src={form.imageData}
                 busy={imageBusy === 1}
                 onPick={() => image1InputRef.current?.click()}
+                onCamera={() => cam1InputRef.current?.click()}
                 onRemove={() => void handleRemoveImage(1)}
                 label="Image 1"
               />
@@ -294,6 +314,7 @@ export default function TransactionDialog({
                 src={form.imageData2}
                 busy={imageBusy === 2}
                 onPick={() => image2InputRef.current?.click()}
+                onCamera={() => cam2InputRef.current?.click()}
                 onRemove={() => void handleRemoveImage(2)}
                 label="Image 2"
               />
@@ -456,12 +477,14 @@ function ImageSlot({
   src,
   busy,
   onPick,
+  onCamera,
   onRemove,
   label,
 }: {
   src: string | null;
   busy: boolean;
   onPick: () => void;
+  onCamera: () => void;
   onRemove: () => void;
   label: string;
 }) {
@@ -478,6 +501,16 @@ function ImageSlot({
             <Receipt className="h-3 w-3" /> {label}
           </span>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onCamera}
+              disabled={busy}
+              className="grid h-6 w-6 place-items-center rounded-full bg-background/90 text-foreground shadow-sm transition hover:bg-background"
+              aria-label={`Take photo for ${label}`}
+              title="Camera"
+            >
+              <Camera className="h-3 w-3" />
+            </button>
             <button
               type="button"
               onClick={onPick}
@@ -504,18 +537,36 @@ function ImageSlot({
     );
   }
   return (
-    <button
-      type="button"
-      onClick={onPick}
-      disabled={busy}
-      className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground transition hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-700 disabled:opacity-60"
-    >
+    <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground">
       {busy ? (
         <Loader2 className="h-5 w-5 animate-spin" />
       ) : (
-        <ImagePlus className="h-5 w-5" />
+        <>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onPick}
+              disabled={busy}
+              className="grid h-8 w-8 place-items-center rounded-full bg-background text-foreground shadow-sm transition hover:bg-accent"
+              aria-label={`Upload ${label}`}
+              title="Upload"
+            >
+              <ImagePlus className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onCamera}
+              disabled={busy}
+              className="grid h-8 w-8 place-items-center rounded-full bg-emerald-600 text-white shadow-sm transition hover:bg-emerald-700"
+              aria-label={`Take photo for ${label}`}
+              title="Camera"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+          </div>
+          <span>{label}</span>
+        </>
       )}
-      <span>{busy ? "Uploading…" : label}</span>
-    </button>
+    </div>
   );
 }

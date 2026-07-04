@@ -20,6 +20,7 @@ import {
   MoreHorizontal,
   ImagePlus,
   Receipt,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -223,6 +224,8 @@ export default function FinanceTab() {
   const amountRef = React.useRef<HTMLInputElement>(null);
   const imageInputRef = React.useRef<HTMLInputElement>(null);
   const image2InputRef = React.useRef<HTMLInputElement>(null);
+  const cam1InputRef = React.useRef<HTMLInputElement>(null);
+  const cam2InputRef = React.useRef<HTMLInputElement>(null);
 
   // Income section state
   const [accountTab, setAccountTab] = React.useState<string>("All");
@@ -506,6 +509,23 @@ export default function FinanceTab() {
               className="hidden"
               onChange={(e) => void handleImagePick(e, 2)}
             />
+            {/* Camera inputs (capture="environment" opens the camera on mobile) */}
+            <input
+              ref={cam1InputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => void handleImagePick(e, 1)}
+            />
+            <input
+              ref={cam2InputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => void handleImagePick(e, 2)}
+            />
             <div className="flex w-full items-center gap-1.5 sm:w-auto">
               <InlineImageButton
                 imageData={entry.imageData}
@@ -518,6 +538,15 @@ export default function FinanceTab() {
                 slot={2}
                 onPick={() => image2InputRef.current?.click()}
                 onClear={() => setEntry((prev) => ({ ...prev, imageData2: null }))}
+              />
+              {/* Camera capture buttons */}
+              <InlineCameraButton
+                onPick={() => cam1InputRef.current?.click()}
+                label="Cam 1"
+              />
+              <InlineCameraButton
+                onPick={() => cam2InputRef.current?.click()}
+                label="Cam 2"
               />
               <Button
                 type="button"
@@ -678,7 +707,7 @@ export default function FinanceTab() {
 
               {/* Income grid — grouped by week/month/year (with sums) or flat */}
               {loading ? (
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
                   {Array.from({ length: 11 }).map((_, i) => (
                     <Skeleton key={i} className="h-12 rounded-md" />
                   ))}
@@ -691,7 +720,7 @@ export default function FinanceTab() {
                   tone="emerald"
                 />
               ) : groupMode === "none" ? (
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
                   {displayedIncomes.map((t) => (
                     <CompactCard
                       key={t.id}
@@ -719,7 +748,7 @@ export default function FinanceTab() {
                           </span>
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
                         {g.items.map((t) => (
                           <CompactCard
                             key={t.id}
@@ -738,7 +767,7 @@ export default function FinanceTab() {
             /* ===== EXPENSE: 11-col grid ===== */
             <div className="space-y-2">
               {loading ? (
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
                   {Array.from({ length: 11 }).map((_, i) => (
                     <Skeleton key={i} className="h-9 rounded-md" />
                   ))}
@@ -751,7 +780,7 @@ export default function FinanceTab() {
                   tone="rose"
                 />
               ) : (
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
                   {expenses.map((t) => (
                     <CompactCard
                       key={t.id}
@@ -876,6 +905,9 @@ function CompactCard({
     : received
       ? "text-white/90"
       : "text-rose-500";
+  // Font weight: received income cards use normal weight (not bold)
+  const catWeight = enlarged ? "font-medium" : "font-semibold";
+  const amtWeight = enlarged ? "font-medium" : "font-bold";
   return (
     <button
       type="button"
@@ -883,7 +915,7 @@ function CompactCard({
       style={enlarged ? { backgroundColor: "#B7EDD5" } : undefined}
       className={cn(
         "group relative flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
-        enlarged && "scale-105 py-2.5",
+        enlarged && "px-3 py-2.5 ring-1 ring-emerald-400",
         cardCls
       )}
       title={`${transaction.category} · ${transaction.account} · ${formatDate(transaction.date)}${received ? " · received" : ""}`}
@@ -903,7 +935,7 @@ function CompactCard({
         {formatDateShort(transaction.date)}
       </span>
       {/* Category (truncate) */}
-      <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold capitalize", catCls)}>
+      <span className={cn("min-w-0 flex-1 truncate text-sm capitalize", catWeight, catCls)}>
         {transaction.category}
       </span>
       {/* Receipt indicator */}
@@ -911,7 +943,7 @@ function CompactCard({
         <Receipt className={cn("h-3.5 w-3.5 shrink-0", iconCls)} />
       )}
       {/* Amount */}
-      <span className={cn("shrink-0 text-sm font-bold tabular-nums", amtCls)}>
+      <span className={cn("shrink-0 text-sm tabular-nums", amtWeight, amtCls)}>
         {isIncome ? "+" : "−"}
         {formatCurrency(transaction.amount)}
       </span>
@@ -1006,6 +1038,29 @@ function InlineImageButton({
           ×
         </button>
       )}
+    </Button>
+  );
+}
+
+/** Compact camera capture button for the inline entry. */
+function InlineCameraButton({
+  onPick,
+  label,
+}: {
+  onPick: () => void;
+  label: string;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={onPick}
+      className="h-8 shrink-0 gap-1 px-2.5 text-xs"
+      title={`Take photo with camera`}
+    >
+      <Camera className="h-4 w-4" />
+      <span className="hidden sm:inline">{label}</span>
     </Button>
   );
 }
