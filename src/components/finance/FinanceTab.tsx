@@ -466,8 +466,8 @@ export default function FinanceTab() {
       {/* ---------- Inline entry (compact) ---------- */}
       <Card className="gap-0 py-0">
         <CardContent className="px-2.5 py-2.5 sm:px-3 sm:py-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Type toggle (compact) */}
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center">
+            {/* Type toggle (compact) — full width on mobile, auto on desktop */}
             <ToggleGroup
               type="single"
               value={entry.type}
@@ -494,66 +494,66 @@ export default function FinanceTab() {
               </ToggleGroupItem>
             </ToggleGroup>
 
-            {/* Account (manageable) */}
-            <div className="w-full min-w-[7rem] sm:w-36">
-              <ManageableSelect
-                value={entry.account}
-                onValueChange={(v) =>
-                  setEntry((prev) => ({ ...prev, account: v }))
+            {/* Row: Account + Category on one line (50/50 on mobile) */}
+            <div className="flex w-full items-center gap-1.5 sm:w-auto sm:flex-1">
+              <div className="min-w-0 flex-1 sm:w-36 sm:flex-none">
+                <ManageableSelect
+                  value={entry.account}
+                  onValueChange={(v) =>
+                    setEntry((prev) => ({ ...prev, account: v }))
+                  }
+                  items={accounts}
+                  onAdd={addAccount}
+                  onDelete={removeAccount}
+                  placeholder="Account"
+                />
+              </div>
+              <div className="min-w-0 flex-1 sm:w-40 sm:flex-none">
+                <ManageableSelect
+                  value={entry.category}
+                  onValueChange={(v) =>
+                    setEntry((prev) => ({ ...prev, category: v }))
+                  }
+                  items={categories}
+                  onAdd={addCategory}
+                  onDelete={removeCategory}
+                  placeholder="Category"
+                />
+              </div>
+            </div>
+
+            {/* Row: Amount + Date on one line (50/50 on mobile) */}
+            <div className="flex w-full items-center gap-1.5 sm:w-auto">
+              <Input
+                ref={amountRef}
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                placeholder="Amount"
+                value={entry.amount}
+                onChange={(e) =>
+                  setEntry((prev) => ({ ...prev, amount: e.target.value }))
                 }
-                items={accounts}
-                onAdd={addAccount}
-                onDelete={removeAccount}
-                placeholder="Account"
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlurSave}
+                className={cn(
+                  "h-8 min-w-0 flex-1 text-sm font-semibold sm:w-28 sm:flex-none",
+                  isIncomeEntry ? "text-emerald-700" : "text-rose-700"
+                )}
+              />
+              <Input
+                type="date"
+                value={entry.date}
+                onChange={(e) =>
+                  setEntry((prev) => ({ ...prev, date: e.target.value }))
+                }
+                onKeyDown={handleKeyDown}
+                className="h-8 min-w-0 flex-1 text-sm sm:w-36 sm:flex-none"
               />
             </div>
 
-            {/* Category (manageable) */}
-            <div className="w-full min-w-[7rem] sm:w-40">
-              <ManageableSelect
-                value={entry.category}
-                onValueChange={(v) =>
-                  setEntry((prev) => ({ ...prev, category: v }))
-                }
-                items={categories}
-                onAdd={addCategory}
-                onDelete={removeCategory}
-                placeholder="Category"
-              />
-            </div>
-
-            {/* Amount */}
-            <Input
-              ref={amountRef}
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="0.01"
-              placeholder="Amount"
-              value={entry.amount}
-              onChange={(e) =>
-                setEntry((prev) => ({ ...prev, amount: e.target.value }))
-              }
-              onKeyDown={handleKeyDown}
-              onBlur={handleBlurSave}
-              className={cn(
-                "h-8 w-full text-sm font-semibold sm:w-28",
-                isIncomeEntry ? "text-emerald-700" : "text-rose-700"
-              )}
-            />
-
-            {/* Date */}
-            <Input
-              type="date"
-              value={entry.date}
-              onChange={(e) =>
-                setEntry((prev) => ({ ...prev, date: e.target.value }))
-              }
-              onKeyDown={handleKeyDown}
-              className="h-8 w-full text-sm sm:w-36"
-            />
-
-            {/* Image uploads (2 receipt images) */}
+            {/* Row: Image buttons + Add */}
             <input
               ref={imageInputRef}
               type="file"
@@ -568,40 +568,40 @@ export default function FinanceTab() {
               className="hidden"
               onChange={(e) => void handleImagePick(e, 2)}
             />
-            <InlineImageButton
-              imageData={entry.imageData}
-              slot={1}
-              onPick={() => imageInputRef.current?.click()}
-              onClear={() => setEntry((prev) => ({ ...prev, imageData: null }))}
-            />
-            <InlineImageButton
-              imageData={entry.imageData2}
-              slot={2}
-              onPick={() => image2InputRef.current?.click()}
-              onClear={() => setEntry((prev) => ({ ...prev, imageData2: null }))}
-            />
-
-            {/* Add button */}
-            <Button
-              type="button"
-              onClick={() => void saveEntry()}
-              disabled={inlineSaving}
-              className={cn(
-                "h-8 w-full gap-1.5 text-xs sm:w-auto",
-                isIncomeEntry
-                  ? "bg-emerald-600 text-white hover:bg-emerald-600/90"
-                  : "bg-rose-600 text-white hover:bg-rose-600/90"
-              )}
-            >
-              {inlineSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : inlineFlash ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              {inlineSaving ? "Saving" : inlineFlash ? "Saved" : "Add"}
-            </Button>
+            <div className="flex w-full items-center gap-1.5 sm:w-auto">
+              <InlineImageButton
+                imageData={entry.imageData}
+                slot={1}
+                onPick={() => imageInputRef.current?.click()}
+                onClear={() => setEntry((prev) => ({ ...prev, imageData: null }))}
+              />
+              <InlineImageButton
+                imageData={entry.imageData2}
+                slot={2}
+                onPick={() => image2InputRef.current?.click()}
+                onClear={() => setEntry((prev) => ({ ...prev, imageData2: null }))}
+              />
+              <Button
+                type="button"
+                onClick={() => void saveEntry()}
+                disabled={inlineSaving}
+                className={cn(
+                  "ml-auto h-8 gap-1.5 px-4 text-xs sm:ml-0 sm:w-auto",
+                  isIncomeEntry
+                    ? "bg-emerald-600 text-white hover:bg-emerald-600/90"
+                    : "bg-rose-600 text-white hover:bg-rose-600/90"
+                )}
+              >
+                {inlineSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : inlineFlash ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                {inlineSaving ? "Saving" : inlineFlash ? "Saved" : "Add"}
+              </Button>
+            </div>
           </div>
           {error && (
             <p className="mt-2 text-xs text-rose-600">Failed to load: {error}</p>

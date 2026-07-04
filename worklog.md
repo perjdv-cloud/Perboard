@@ -598,3 +598,26 @@ Work Log:
 Stage Summary:
 - Income card text increased to text-sm (was 9–10px) — readable but still one-line
 - Income view now has All/Week/Month/Year group buttons; selecting Week/Month/Year groups the income cards under sticky headers showing the period label + item count + summed amount, each group rendering its own 11-column grid
+
+---
+Task ID: 26
+Agent: Orchestrator
+Task: Finance mobile — arrange account+category on one line, amount+date on one line
+
+Work Log:
+- Restructured the inline entry container from a single flex-wrap row into a column-on-mobile / flex-row-on-desktop layout
+- Mobile layout (flex-col):
+  - Row 1: Income/Expense toggle (full width)
+  - Row 2: Account + Category side-by-side (each flex-1, 50/50)
+  - Row 3: Amount + Date side-by-side (each flex-1, 50/50)
+  - Row 4: Img 1 + Img 2 + Add button (Add pushed right with ml-auto)
+- Desktop (sm+): reverts to flex-row flex-wrap so all controls sit in one flowing row as before (each item gets its sm:w-* fixed width)
+- Verified via Agent Browser + VLM at mobile 390×844:
+  - Bounding boxes: Account y=243, Category y=243 (same row); Amount y=281, Date y=289 (same row, below)
+  - VLM: "Account (Cash) and Category (Food) on the same line; Amount and Date on the same line below the account/category row; no layout issues"
+  - Desktop (1280×900): VLM confirms form is clean and functional, all fields visible
+- No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- On mobile, the Finance inline entry now arranges: Account + Category on one line, Amount + Date on one line (plus type toggle row above and image/add row below)
+- Desktop keeps the compact single-row flex-wrap layout
