@@ -140,7 +140,8 @@ interface GroupedIncome {
   items: Transaction[];
 }
 
-/** Group income transactions by week/month/year with summed amounts. */
+/** Group income transactions by week/month/year with summed amounts.
+ *  Only RECEIVED items contribute to the group sum. */
 function groupIncomes(
   items: Transaction[],
   mode: GroupMode
@@ -150,7 +151,9 @@ function groupIncomes(
       {
         key: "all",
         label: "All",
-        sum: items.reduce((s, t) => s + t.amount, 0),
+        sum: items
+          .filter((t) => t.received)
+          .reduce((s, t) => s + t.amount, 0),
         items,
       },
     ];
@@ -179,12 +182,13 @@ function groupIncomes(
       key = `${d.getFullYear()}`;
       label = `${d.getFullYear()}`;
     }
+    const addAmount = t.received ? t.amount : 0;
     const existing = map.get(key);
     if (existing) {
       existing.items.push(t);
-      existing.sum += t.amount;
+      existing.sum += addAmount;
     } else {
-      map.set(key, { key, label, sum: t.amount, items: [t] });
+      map.set(key, { key, label, sum: addAmount, items: [t] });
     }
   }
   // Sort groups by date descending
@@ -819,7 +823,8 @@ function AccountTab({
   );
 }
 
-/** Very compact one-line card: date · category · amount, all in a single row. */
+/** Very compact one-line card: date · category · amount, all in a single row.
+ *  When an income card is "received", it enlarges and uses the #B7EDD5 background. */
 function CompactCard({
   transaction,
   tone,
@@ -832,40 +837,66 @@ function CompactCard({
   const isIncome = tone === "income";
   const hasImage = !!(transaction.imageData || transaction.imageData2);
   const received = !!transaction.received;
-  // Received → darker/solid color; Not received → light/faded color
+  // Income received → enlarged card with #B7EDD5 background (light mint green)
+  // Expense received → darker solid rose
+  const enlarged = isIncome && received;
   const cardCls = isIncome
     ? received
-      ? "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500/50 dark:border-emerald-400 dark:bg-emerald-700"
+      ? "border-emerald-400 focus-visible:ring-emerald-500/50 shadow-md"
       : "border-emerald-200/70 bg-emerald-50/50 hover:border-emerald-400 focus-visible:ring-emerald-500/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
     : received
       ? "border-rose-500 bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-500/50 dark:border-rose-400 dark:bg-rose-700"
       : "border-rose-200/70 bg-rose-50/50 hover:border-rose-400 focus-visible:ring-rose-500/40 dark:border-rose-900/50 dark:bg-rose-950/20";
-  // When received (solid bg), text should be white
-  const dateCls = received ? "text-white/80" : "text-muted-foreground";
-  const catCls = received
-    ? "text-white"
-    : isIncome
-      ? "text-emerald-700 dark:text-emerald-300"
+  // Text colors
+  const dateCls = isIncome
+    ? received
+      ? "text-emerald-900"
+      : "text-muted-foreground"
+    : received
+      ? "text-white/80"
+      : "text-muted-foreground";
+  const catCls = isIncome
+    ? received
+      ? "text-emerald-900"
+      : "text-emerald-700 dark:text-emerald-300"
+    : received
+      ? "text-white"
       : "text-rose-700 dark:text-rose-300";
-  const amtCls = received
-    ? "text-white"
-    : isIncome
-      ? "text-emerald-600 dark:text-emerald-400"
+  const amtCls = isIncome
+    ? received
+      ? "text-emerald-900"
+      : "text-emerald-600 dark:text-emerald-400"
+    : received
+      ? "text-white"
       : "text-rose-600 dark:text-rose-400";
-  const iconCls = received ? "text-white/90" : isIncome ? "text-emerald-500" : "text-rose-500";
+  const iconCls = isIncome
+    ? received
+      ? "text-emerald-700"
+      : "text-emerald-500"
+    : received
+      ? "text-white/90"
+      : "text-rose-500";
   return (
     <button
       type="button"
       onClick={onClick}
+      style={enlarged ? { backgroundColor: "#B7EDD5" } : undefined}
       className={cn(
         "group relative flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
+        enlarged && "scale-105 py-2.5",
         cardCls
       )}
       title={`${transaction.category} · ${transaction.account} · ${formatDate(transaction.date)}${received ? " · received" : ""}`}
     >
       {/* Received indicator dot */}
       {received && (
-        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-white/90" aria-hidden />
+        <span
+          className={cn(
+            "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
+            isIncome ? "bg-emerald-700" : "bg-white/90"
+          )}
+          aria-hidden
+        />
       )}
       {/* Date (short) */}
       <span className={cn("shrink-0 text-xs font-medium", dateCls)}>

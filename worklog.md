@@ -651,3 +651,26 @@ Work Log:
 Stage Summary:
 - The income/expense/net summary bar is removed
 - Each transaction card has a Received/Paid toggle in its expand dialog; when on, the card turns a darker solid color (emerald-600 for income, rose-600 for expense) with a white dot indicator, so received and not-received cards are visually distinct at a glance
+
+---
+Task ID: 28
+Agent: Orchestrator
+Task: Finance — received income cards enlarge + #B7EDD5 color; only received cards count toward group sum
+
+Work Log:
+- groupIncomes(): changed the sum logic to only count RECEIVED items. In "none" mode, sum = items.filter(t => t.received).reduce(...). In week/month/year mode, each item contributes addAmount = t.received ? t.amount : 0 to its group sum. Non-received cards still appear in the group but don't add to the sum.
+- CompactCard(): income received cards now:
+  1. ENLARGE — added `scale-105 py-2.5` classes (verified: 112×44px vs 107×42px normal)
+  2. Use #B7EDD5 background — applied via inline style={{ backgroundColor: "#B7EDD5" }} when enlarged (verified: rgb(183, 237, 213) = #B7EDD5 exactly)
+  3. Text color = emerald-900 (dark green) on the light mint background
+  4. Received dot = emerald-700 (dark green dot on light bg)
+  - Expense received cards unchanged (solid rose-600 with white text)
+- Verified via Agent Browser + JS eval:
+  - Toggled "Received" on for a ₹3,633 income card → card background = rgb(183,237,213) = #B7EDD5; card enlarged (112×44 vs 107×42)
+  - 3 received income cards all show #B7EDD5 background
+  - Month grouping: "July 2026" sum = ₹4,123 = exactly the 3 received cards (₹235 + ₹255 + ₹3,633); the 4 non-received cards (₹858, ₹85,888, ₹6,325, ₹1,111) are NOT counted
+  - No console/runtime errors; `bun run lint` clean
+
+Stage Summary:
+- Income cards with "Received" ON now enlarge (scale-105) and use #B7EDD5 (light mint green) background with dark-green text
+- Only received income cards contribute to the week/month/year group sums (non-received cards appear but don't add to the total)
