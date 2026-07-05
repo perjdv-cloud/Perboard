@@ -207,6 +207,9 @@ export default function NotesTab() {
 
   const handleDeleteNote = useCallback(
     async (note: Note) => {
+      const title = note.title.trim() || note.content.trim().slice(0, 30) || "this note";
+      const ok = window.confirm(`Delete "${title}"? This cannot be undone.`);
+      if (!ok) return;
       const prev = notes;
       setNotes((arr) => arr.filter((n) => n.id !== note.id));
       try {
