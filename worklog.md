@@ -743,3 +743,18 @@ Stage Summary:
 - GitHub: code pushed to https://github.com/perjdv-cloud/Perboard (27 commits, .env excluded)
 - Vercel: PENDING — user needs to import the repo and set 2 env vars (DATABASE_URL + DIRECT_URL). Full instructions provided in chat.
 - SECURITY: user should rotate the GitHub PAT (was shared in chat)
+
+---
+Task ID: 32
+Agent: Orchestrator
+Task: Notes — add confirmation prompt before deleting a note card
+
+Work Log:
+- Updated handleDeleteNote in src/components/notes/NotesTab.tsx to show a window.confirm prompt before deleting: "Delete "<title>"? This cannot be undone." — uses the note title (or first 30 chars of content, or "this note" as fallback). If the user cancels, the delete is aborted.
+- Verified via Agent Browser: clicked the Delete button on a note card → JS confirm dialog appeared: "Delete "Fggg1111"? This cannot be undone." → dismissed it → note still present (not deleted)
+- `bun run lint` clean
+- Committed and pushed to GitHub (commit fa2aef7 on main) after rebasing on remote changes
+
+Stage Summary:
+- Note cards now show a confirmation prompt before deletion (matching the folder-delete pattern)
+- Change pushed to https://github.com/perjdv-cloud/Perboard
