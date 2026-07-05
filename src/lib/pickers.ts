@@ -12,15 +12,17 @@ const ACCOUNTS_KEY = "finance.accounts.v1";
 const CATEGORIES_KEY = "finance.categories.v1";
 const CHANGE_EVENT = "finance-pickers-change";
 
-export const DEFAULT_ACCOUNTS = ["Cash", "Bank", "Card", "UPI", "Other"];
+export const DEFAULT_ACCOUNTS = ["HSB", "SDP", "GJL", "CRL", "ENF", "OFF"];
 export const DEFAULT_CATEGORIES = [
-  "Salary",
-  "Food",
-  "Rent",
-  "Shopping",
-  "Transport",
-  "General",
-  "Other",
+  "FLY",
+  "RBrick",
+  "WBrick",
+  "OFF",
+  "ENF",
+  "DSchool",
+  "SHRoom",
+  "Auth",
+  "DBA",
 ];
 
 function readList(key: string, defaults: string[]): string[] {
