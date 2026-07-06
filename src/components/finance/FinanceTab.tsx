@@ -21,6 +21,7 @@ import {
   ImagePlus,
   Receipt,
   Camera,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -200,6 +201,23 @@ function groupIncomes(
   });
 }
 
+/** Check if a grouped-income group represents the CURRENT week/month/year. */
+function isCurrentPeriod(group: GroupedIncome, mode: GroupMode): boolean {
+  if (mode === "none") return true;
+  const now = new Date();
+  const first = new Date(group.items[0].date);
+  if (mode === "week") {
+    return getWeekNumber(now) === getWeekNumber(first) &&
+      now.getFullYear() === first.getFullYear();
+  }
+  if (mode === "month") {
+    return now.getFullYear() === first.getFullYear() &&
+      now.getMonth() === first.getMonth();
+  }
+  // year
+  return now.getFullYear() === first.getFullYear();
+}
+
 export default function FinanceTab() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -235,7 +253,14 @@ export default function FinanceTab() {
   const [viewTab, setViewTab] = React.useState<"income" | "expense">("income");
 
   // Income grouping mode: "none" | "week" | "month" | "year"
-  const [groupMode, setGroupMode] = React.useState<"none" | "week" | "month" | "year">("none");
+  const [groupMode, setGroupMode] = React.useState<"none" | "week" | "month" | "year">("month");
+
+  // Track manually-toggled groups. A group is expanded if:
+  //  - it's the current period (default expanded), OR
+  //  - the user explicitly toggled it open.
+  // A group is collapsed if:
+  //  - it's NOT the current period AND the user hasn't toggled it open.
+  const [manualOverrides, setManualOverrides] = React.useState<Record<string, boolean>>({});
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -288,6 +313,29 @@ export default function FinanceTab() {
     () => groupIncomes(displayedIncomes, groupMode),
     [displayedIncomes, groupMode]
   );
+
+  // A group is expanded if it's the current period, OR the user manually opened it.
+  // Non-current groups start collapsed.
+  const isGroupExpanded = React.useCallback(
+    (group: GroupedIncome) => {
+      if (groupMode === "none") return true;
+      if (group.key in manualOverrides) return manualOverrides[group.key];
+      return isCurrentPeriod(group, groupMode);
+    },
+    [groupMode, manualOverrides]
+  );
+
+  const toggleGroup = React.useCallback((key: string) => {
+    setManualOverrides((prev) => {
+      const current = key in prev ? prev[key] : false;
+      return { ...prev, [key]: !current };
+    });
+  }, []);
+
+  // Reset overrides when the group mode changes
+  React.useEffect(() => {
+    setManualOverrides({});
+  }, [groupMode]);
 
   // ----- Inline save -----
   const saveEntry = React.useCallback(async () => {
@@ -731,35 +779,65 @@ export default function FinanceTab() {
                   ))}
                 </div>
               ) : (
-                /* Grouped: each group has a header (label + sum) then its 11-col grid */
-                <div className="space-y-3">
-                  {groupedIncomes.map((g) => (
-                    <div key={g.key} className="space-y-1.5">
-                      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-md bg-emerald-50/90 px-2.5 py-1 backdrop-blur dark:bg-emerald-950/60">
-                        <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
-                          {g.label}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="rounded-full bg-emerald-200/70 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
-                            {g.items.length}
+                /* Grouped: each group has a clickable header (label + sum) —
+                   current period expanded by default, others collapsed.
+                   Click the header to toggle. */
+                <div className="space-y-2">
+                  {groupedIncomes.map((g) => {
+                    const expanded = isGroupExpanded(g);
+                    const current = groupMode !== "none" && isCurrentPeriod(g, groupMode);
+                    return (
+                      <div key={g.key} className="overflow-hidden rounded-lg border border-emerald-200/60 dark:border-emerald-900/40">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(g.key)}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition-colors",
+                            current
+                              ? "bg-emerald-100/80 dark:bg-emerald-950/50"
+                              : "bg-emerald-50/50 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40"
+                          )}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <ChevronDown
+                              className={cn(
+                                "h-3.5 w-3.5 shrink-0 text-emerald-600 transition-transform",
+                                !expanded && "-rotate-90"
+                              )}
+                            />
+                            <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                              {g.label}
+                            </span>
+                            {current && (
+                              <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                NOW
+                              </span>
+                            )}
                           </span>
-                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                            {formatCurrency(g.sum)}
+                          <span className="flex items-center gap-1.5">
+                            <span className="rounded-full bg-emerald-200/70 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                              {g.items.length}
+                            </span>
+                            <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                              {formatCurrency(g.sum)}
+                            </span>
                           </span>
-                        </span>
+                        </button>
+                        {expanded && (
+                          <div className="grid grid-cols-2 gap-2 p-1.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
+                            {g.items.map((t) => (
+                              <CompactCard
+                                key={t.id}
+                                transaction={t}
+                                tone="income"
+                                onClick={() => openTransaction(t)}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-11">
-                        {g.items.map((t) => (
-                          <CompactCard
-                            key={t.id}
-                            transaction={t}
-                            tone="income"
-                            onClick={() => openTransaction(t)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -908,14 +986,22 @@ function CompactCard({
   // Font weight: received income cards use normal weight (not bold)
   const catWeight = enlarged ? "font-medium" : "font-semibold";
   const amtWeight = enlarged ? "font-medium" : "font-bold";
+  // Small text color for the account/date line
+  const subCls = isIncome
+    ? received
+      ? "text-emerald-700/80"
+      : "text-muted-foreground"
+    : received
+      ? "text-white/70"
+      : "text-muted-foreground";
   return (
     <button
       type="button"
       onClick={onClick}
       style={enlarged ? { backgroundColor: "#B7EDD5" } : undefined}
       className={cn(
-        "group relative flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
-        enlarged && "px-3 py-2.5 ring-1 ring-emerald-400",
+        "group relative flex flex-col gap-0.5 overflow-hidden rounded-lg border px-2 py-1.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2",
+        enlarged && "px-2.5 py-2 ring-1 ring-emerald-400",
         cardCls
       )}
       title={`${transaction.category} · ${transaction.account} · ${formatDate(transaction.date)}${received ? " · received" : ""}`}
@@ -930,22 +1016,23 @@ function CompactCard({
           aria-hidden
         />
       )}
-      {/* Date (short) */}
-      <span className={cn("shrink-0 text-xs font-medium", dateCls)}>
-        {formatDateShort(transaction.date)}
+      {/* Line 1: date + account (small) */}
+      <span className={cn("flex items-center gap-1 text-[10px] font-medium leading-tight", subCls)}>
+        <span className="shrink-0">{formatDateShort(transaction.date)}</span>
+        <span className="truncate">· {transaction.account}</span>
       </span>
-      {/* Category (truncate) */}
-      <span className={cn("min-w-0 flex-1 truncate text-sm capitalize", catWeight, catCls)}>
-        {transaction.category}
-      </span>
-      {/* Receipt indicator */}
-      {hasImage && (
-        <Receipt className={cn("h-3.5 w-3.5 shrink-0", iconCls)} />
-      )}
-      {/* Amount */}
-      <span className={cn("shrink-0 text-sm tabular-nums", amtWeight, amtCls)}>
-        {isIncome ? "+" : "−"}
-        {formatCurrency(transaction.amount)}
+      {/* Line 2: category + receipt icon + amount */}
+      <span className="flex items-center gap-1 leading-tight">
+        <span className={cn("min-w-0 flex-1 truncate text-xs capitalize", catWeight, catCls)}>
+          {transaction.category}
+        </span>
+        {hasImage && (
+          <Receipt className={cn("h-3 w-3 shrink-0", iconCls)} />
+        )}
+        <span className={cn("shrink-0 text-xs tabular-nums", amtWeight, amtCls)}>
+          {isIncome ? "+" : "−"}
+          {formatCurrency(transaction.amount)}
+        </span>
       </span>
     </button>
   );
