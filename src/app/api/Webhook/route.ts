@@ -14,7 +14,7 @@ export async function GET(req) {
   }
 
   return new Response("Forbidden", {
-    status: 403,
+    status: 40003,
   });
 }
 
