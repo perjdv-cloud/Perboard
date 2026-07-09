@@ -27,4 +27,4 @@ export async function POST(req) {
   return new Response("EVENT_RECEIVED", {
     status: 200,
   });
-} nun0
+}
